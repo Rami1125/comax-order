@@ -24,6 +24,7 @@ export interface DashboardStats {
   totalOrders: number;
   syncedOrders: number;
   pendingOrders: number;
+  delayedOrders: number;
   topCity: string;
   topCityCount: number;
   activeWarehouses: number;

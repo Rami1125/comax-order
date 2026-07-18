@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Order } from "./types";
+import { Order, DashboardStats } from "./types";
 import { calculateStats, getDelayHours } from "./utils";
 import KPICards from "./components/KPICards";
 import ChartsSection from "./components/ChartsSection";
@@ -12,6 +12,7 @@ import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCir
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [prevStats, setPrevStats] = useState<DashboardStats | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -204,6 +205,9 @@ export default function App() {
       const result = await response.json();
       
       if (result.data) {
+        if (orders.length > 0) {
+          setPrevStats(calculateStats(orders));
+        }
         setOrders(result.data);
         setDataSource(result.source);
         if (!result.success) {
@@ -396,7 +400,7 @@ export default function App() {
             />
 
             {/* 1. Key Performance Indicators (KPIs) */}
-            <KPICards stats={stats} darkMode={darkMode} />
+            <KPICards stats={stats} prevStats={prevStats} darkMode={darkMode} />
 
             {/* 2. Visual Graphs (Recharts) */}
             <ChartsSection orders={orders} darkMode={darkMode} />

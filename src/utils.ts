@@ -85,6 +85,7 @@ export function calculateStats(orders: Order[]): DashboardStats {
   const totalOrders = orders.length;
   
   let syncedOrders = 0;
+  let delayedOrders = 0;
   const citiesCount: Record<string, number> = {};
   const warehouses = new Set<string>();
   const whatsappModelStats: Record<string, number> = {};
@@ -94,6 +95,11 @@ export function calculateStats(orders: Order[]): DashboardStats {
     const syncStatus = order["סטטוס סנכרון"] || "";
     if (syncStatus.includes("סונכרן") || syncStatus.includes("✅")) {
       syncedOrders++;
+    }
+
+    // Delayed check
+    if (isOrderDelayed(order)) {
+      delayedOrders++;
     }
     
     // City calculation
@@ -129,6 +135,7 @@ export function calculateStats(orders: Order[]): DashboardStats {
     totalOrders,
     syncedOrders,
     pendingOrders,
+    delayedOrders,
     topCity,
     topCityCount,
     activeWarehouses: warehouses.size,

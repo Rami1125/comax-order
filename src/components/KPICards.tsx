@@ -1,17 +1,19 @@
 import { DashboardStats } from "../types";
-import { Package, CheckCircle2, Clock, MapPin, Building2 } from "lucide-react";
+import { Package, CheckCircle2, Clock, MapPin, Building2, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
 
 interface KPICardsProps {
   stats: DashboardStats;
+  prevStats?: DashboardStats | null;
   darkMode?: boolean;
 }
 
-export default function KPICards({ stats, darkMode = false }: KPICardsProps) {
+export default function KPICards({ stats, prevStats = null, darkMode = false }: KPICardsProps) {
   const cards = [
     {
       id: "total-orders",
       title: "סה\"כ הזמנות",
       value: stats.totalOrders,
+      prevValue: prevStats?.totalOrders,
       subtitle: "הזמנות שנקלטו במערכת",
       icon: Package,
       gradient: darkMode 
@@ -23,6 +25,7 @@ export default function KPICards({ stats, darkMode = false }: KPICardsProps) {
       id: "synced-orders",
       title: "סונכרנו בהצלחה",
       value: stats.syncedOrders,
+      prevValue: prevStats?.syncedOrders,
       subtitle: `${((stats.syncedOrders / (stats.totalOrders || 1)) * 100).toFixed(0)}% מכלל ההזמנות`,
       icon: CheckCircle2,
       gradient: darkMode 
@@ -34,12 +37,25 @@ export default function KPICards({ stats, darkMode = false }: KPICardsProps) {
       id: "pending-orders",
       title: "ממתינים לסנכרון",
       value: stats.pendingOrders,
+      prevValue: prevStats?.pendingOrders,
       subtitle: "הזמנות בתהליך טיפול",
       icon: Clock,
       gradient: darkMode 
         ? "from-amber-500/15 to-orange-500/5 text-amber-400" 
         : "from-amber-500/20 to-orange-500/10 text-amber-600",
       borderColor: darkMode ? "border-amber-900/40" : "border-amber-200/50"
+    },
+    {
+      id: "delayed-orders",
+      title: "הזמנות בעיכוב",
+      value: stats.delayedOrders,
+      prevValue: prevStats?.delayedOrders,
+      subtitle: "חריגה מ-48 שעות אספקה",
+      icon: AlertTriangle,
+      gradient: darkMode 
+        ? "from-red-500/15 to-rose-500/5 text-red-400" 
+        : "from-red-500/20 to-rose-500/10 text-red-600",
+      borderColor: darkMode ? "border-red-900/40" : "border-red-200/50"
     },
     {
       id: "top-city",
@@ -56,6 +72,7 @@ export default function KPICards({ stats, darkMode = false }: KPICardsProps) {
       id: "active-warehouses",
       title: "מחסנים פעילים",
       value: stats.activeWarehouses,
+      prevValue: prevStats?.activeWarehouses,
       subtitle: "מרכזי הפצה משגרים",
       icon: Building2,
       gradient: darkMode 
@@ -65,8 +82,26 @@ export default function KPICards({ stats, darkMode = false }: KPICardsProps) {
     }
   ];
 
+  const getTrend = (value: number, prevValue: number | undefined, metricId: string) => {
+    if (prevValue === undefined || prevValue === null) return null;
+    const delta = value - prevValue;
+    if (delta === 0) return null;
+
+    // Positive metrics where growth is good (higher is better)
+    const isPositiveMetric = !["pending-orders", "delayed-orders"].includes(metricId);
+    const isGood = isPositiveMetric ? delta > 0 : delta < 0;
+    const text = delta > 0 ? `+${delta}` : `${delta}`;
+
+    return {
+      delta,
+      text,
+      isGood,
+      direction: delta > 0 ? "up" : "down"
+    };
+  };
+
   return (
-    <div id="kpi-section" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full">
+    <div id="kpi-section" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 w-full">
       {cards.map((card) => {
         const IconComponent = card.icon;
         return (
@@ -80,19 +115,45 @@ export default function KPICards({ stats, darkMode = false }: KPICardsProps) {
             }`}
           >
             <div className="flex items-center justify-between mb-4">
-              <span className={`text-sm font-medium ${darkMode ? "text-slate-400" : "text-gray-500"}`}>{card.title}</span>
-              <div className={`p-2.5 rounded-xl bg-gradient-to-br ${card.gradient}`}>
-                <IconComponent size={20} className="stroke-[2px]" />
+              <span className={`text-xs font-semibold ${darkMode ? "text-slate-450" : "text-gray-500"}`}>{card.title}</span>
+              <div className={`p-2 rounded-lg bg-gradient-to-br ${card.gradient}`}>
+                <IconComponent size={16} className="stroke-[2.5px]" />
               </div>
             </div>
             
             <div>
-              <div className={`text-3xl font-bold tracking-tight font-mono mb-1 ${
-                darkMode ? "text-slate-100" : "text-slate-800"
-              }`}>
-                {typeof card.value === "number" ? card.value.toLocaleString() : card.value}
+              <div className="flex items-baseline gap-2 mb-1 justify-start">
+                <span className={`text-2xl font-bold tracking-tight font-mono ${
+                  darkMode ? "text-slate-100" : "text-slate-800"
+                }`}>
+                  {typeof card.value === "number" ? card.value.toLocaleString() : card.value}
+                </span>
+
+                {/* Trend indicator */}
+                {typeof card.value === "number" && card.prevValue !== undefined && (
+                  (() => {
+                    const trend = getTrend(card.value, card.prevValue, card.id);
+                    if (!trend) return null;
+
+                    const TrendIcon = trend.direction === "up" ? TrendingUp : TrendingDown;
+                    const badgeClass = trend.isGood
+                      ? darkMode
+                        ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25"
+                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : darkMode
+                        ? "bg-rose-500/15 text-rose-400 border-rose-500/25"
+                        : "bg-rose-50 text-rose-700 border-rose-200";
+
+                    return (
+                      <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold border font-mono ${badgeClass}`} dir="ltr">
+                        <TrendIcon size={10} className="stroke-[2.5px]" />
+                        <span>{trend.text}</span>
+                      </div>
+                    );
+                  })()
+                )}
               </div>
-              <p className={`text-xs font-normal ${darkMode ? "text-slate-400" : "text-gray-400"}`}>{card.subtitle}</p>
+              <p className={`text-[10px] font-normal leading-normal ${darkMode ? "text-slate-450" : "text-gray-400"}`}>{card.subtitle}</p>
             </div>
           </div>
         );
