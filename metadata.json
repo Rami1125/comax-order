@@ -1,0 +1,6 @@
+{
+  "name": "Logistics Dashboard",
+  "description": "דשבורד לוגיסטי מודרני בעברית מלאה לניהול וניתוח הזמנות ומשלוחים בזמן אמת",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
