@@ -12,6 +12,7 @@ export interface Order {
   "מסקנות נועה AI"?: string;
   "אימות מסלול הובלה"?: string;
   "סטטוס סנכרון": string;
+  "isSimulated"?: boolean;
 }
 
 export interface ParsedItem {

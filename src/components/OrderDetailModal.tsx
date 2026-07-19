@@ -72,8 +72,8 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
               <Clipboard size={18} />
             </span>
             <div>
-              <h2 className={`text-lg font-bold ${darkMode ? "text-slate-100" : "text-slate-850"}`}>הזמנה #{order["מספר הזמנה"]}</h2>
-              <p className={`text-xs ${darkMode ? "text-slate-400" : "text-slate-400"}`}>התקבלה בתאריך: {formatDate(order["תאריך קליטה"])}</p>
+              <h2 className={`text-base sm:text-lg font-bold ${darkMode ? "text-slate-100" : "text-slate-850"}`}>הזמנה #{order["מספר הזמנה"]}</h2>
+              <p className={`text-[10px] sm:text-xs ${darkMode ? "text-slate-400" : "text-slate-400"}`}>התקבלה בתאריך: {formatDate(order["תאריך קליטה"])}</p>
             </div>
           </div>
           <button
@@ -99,9 +99,9 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
                 <MapPin size={16} />
               </div>
               <div className="space-y-1">
-                <span className={`text-xs block font-medium ${darkMode ? "text-slate-400" : "text-gray-400"}`}>פרטי לקוח ויעד אספקה</span>
-                <span className={`font-semibold text-sm block ${darkMode ? "text-slate-200" : "text-slate-850"}`}>{order["שם לקוח"]}</span>
-                <span className={`text-xs block leading-relaxed ${darkMode ? "text-slate-400" : "text-slate-600"}`}>{order["כתובת אספקה"] || "לא צוין יעד"}</span>
+                <span className={`text-[10px] sm:text-xs block font-medium ${darkMode ? "text-slate-400" : "text-gray-400"}`}>פרטי לקוח ויעד אספקה</span>
+                <span className={`font-semibold text-xs sm:text-sm block ${darkMode ? "text-slate-200" : "text-slate-850"}`}>{order["שם לקוח"]}</span>
+                <span className={`text-[11px] sm:text-xs block leading-relaxed ${darkMode ? "text-slate-400" : "text-slate-600"}`}>{order["כתובת אספקה"] || "לא צוין יעד"}</span>
               </div>
             </div>
 
@@ -113,10 +113,10 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
                 <Warehouse size={16} />
               </div>
               <div className="space-y-1">
-                <span className={`text-xs block font-medium ${darkMode ? "text-slate-400" : "text-gray-400"}`}>מחסן מנפק ומסלול</span>
-                <span className={`font-semibold text-sm block ${darkMode ? "text-slate-200" : "text-slate-850"}`}>{order["מחסן"] || "לא הוגדר מחסן"}</span>
+                <span className={`text-[10px] sm:text-xs block font-medium ${darkMode ? "text-slate-400" : "text-gray-400"}`}>מחסן מנפק ומסלול</span>
+                <span className={`font-semibold text-xs sm:text-sm block ${darkMode ? "text-slate-200" : "text-slate-850"}`}>{order["מחסן"] || "לא הוגדר מחסן"}</span>
                 {order["אימות מסלול הובלה"] && (
-                  <span className={`text-xs block leading-relaxed ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                  <span className={`text-[11px] sm:text-xs block leading-relaxed ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
                     מסלול: {order["אימות מסלול הובלה"]}
                   </span>
                 )}
@@ -130,13 +130,13 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
               darkMode ? "border-slate-850" : "border-slate-100"
             }`}>
               <div className="flex items-center gap-2">
-                <ShoppingBag size={16} className="text-indigo-500" />
-                <h3 className={`font-semibold text-sm ${darkMode ? "text-slate-200" : "text-slate-800"}`}>פירוט פריטי ההזמנה</h3>
+                <ShoppingBag size={16} className="text-indigo-500 shrink-0" />
+                <h3 className={`font-semibold text-xs sm:text-sm ${darkMode ? "text-slate-200" : "text-slate-800"}`}>פירוט פריטי ההזמנה</h3>
               </div>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-md font-mono ${
+              <span className={`text-[10px] sm:text-xs font-medium px-2 py-0.5 rounded-md font-mono shrink-0 ${
                 darkMode ? "text-indigo-400 bg-indigo-950/50" : "text-indigo-600 bg-indigo-50"
               }`}>
-                {parsedProducts.length} פריטים שונים | {totalQty} יח' סה"כ
+                {parsedProducts.length} פריטים | {totalQty} יח' סה"כ
               </span>
             </div>
 
@@ -149,23 +149,23 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
                 {parsedProducts.map((prod, idx) => (
                   <div
                     key={`${prod.code}-${idx}`}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                    className={`flex items-center justify-between p-2.5 sm:p-3 rounded-lg border transition-all ${
                       darkMode 
                         ? "border-slate-800/80 bg-slate-900/20 hover:border-slate-700/60" 
                         : "border-slate-100 hover:border-slate-200 bg-white shadow-xs"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      <span className={`text-[10px] sm:text-xs font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded-md shrink-0 ${
                         darkMode ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-600"
                       }`}>
                         {prod.code || "N/A"}
                       </span>
-                      <span className={`text-xs font-medium ${darkMode ? "text-slate-300" : "text-slate-800"}`}>{prod.name}</span>
+                      <span className={`text-[11px] sm:text-xs font-medium truncate ${darkMode ? "text-slate-300" : "text-slate-800"}`}>{prod.name}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 font-mono">
-                      <span className="text-xs text-slate-400">כמות:</span>
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${
+                    <div className="flex items-center gap-1 sm:gap-1.5 font-mono shrink-0">
+                      <span className="text-[10px] sm:text-xs text-slate-400">כמות:</span>
+                      <span className={`text-[11px] sm:text-xs font-bold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md border ${
                         darkMode 
                           ? "text-slate-200 bg-slate-950 border-slate-850" 
                           : "text-slate-800 bg-slate-50 border-slate-100"
@@ -190,20 +190,20 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
                 <div className={`p-1 rounded-md ${darkMode ? "bg-violet-950 text-violet-400" : "bg-indigo-100/80 text-indigo-700"}`}>
                   <Sparkles size={16} className="animate-pulse" />
                 </div>
-                <h4 className="text-sm font-bold tracking-tight">מסקנות נועה AI (מנתחת פיקדונומטר)</h4>
+                <h4 className="text-xs sm:text-sm font-bold tracking-tight">מסקנות נועה AI (מנתחת פיקדונומטר)</h4>
               </div>
-              <span className="text-[10px] bg-indigo-600 text-white font-bold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+              <span className="text-[10px] bg-indigo-600 text-white font-bold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse shrink-0">
                 המלצת מערכת
               </span>
             </div>
             
-            <div className={`backdrop-blur-xs p-3 rounded-lg text-xs leading-relaxed shadow-2xs font-medium border ${
+            <div className={`backdrop-blur-xs p-3 rounded-lg text-[11px] sm:text-xs leading-relaxed shadow-2xs font-medium border ${
               darkMode 
                 ? "bg-slate-950/80 border-violet-900/40 text-slate-200" 
                 : "bg-white/80 border-indigo-100/50 text-slate-700"
             }`}>
               {order["מסקנות נועה AI"] ? (
-                <div className="flex items-start gap-2.5">
+                <div className="flex items-start gap-2">
                   <span className="text-emerald-500 font-bold mt-0.5">✦</span>
                   <p>{order["מסקנות נועה AI"]}</p>
                 </div>
@@ -218,22 +218,22 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
           {/* Deposit Verification section */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             {/* Bullets Deposit */}
-            <div className={`p-3.5 rounded-xl border ${darkMode ? "bg-slate-900/30 border-slate-800" : "bg-slate-50/20 border-slate-100"} space-y-1.5`}>
-              <span className={`text-xs font-medium block ${darkMode ? "text-slate-400" : "text-gray-400"}`}>אימות פקדון בלות (שקים גדולים)</span>
+            <div className={`p-3 sm:p-3.5 rounded-xl border ${darkMode ? "bg-slate-900/30 border-slate-800" : "bg-slate-50/20 border-slate-100"} space-y-1`}>
+              <span className={`text-[10px] sm:text-xs font-medium block ${darkMode ? "text-slate-400" : "text-gray-400"}`}>אימות פקדון בלות (שקים גדולים)</span>
               <div className="flex items-center gap-1.5">
-                <Info size={14} className="text-slate-400" />
-                <span className={`text-xs font-medium ${darkMode ? "text-slate-300" : "text-slate-700"}`}>
+                <Info size={13} className="text-slate-400 shrink-0" />
+                <span className={`text-[11px] sm:text-xs font-medium ${darkMode ? "text-slate-300" : "text-slate-700"}`}>
                   {order["אימות פקדון בלות"] || "טרם בוצע אימות"}
                 </span>
               </div>
             </div>
 
             {/* Pallets Deposit */}
-            <div className={`p-3.5 rounded-xl border ${darkMode ? "bg-slate-900/30 border-slate-800" : "bg-slate-50/20 border-slate-100"} space-y-1.5`}>
-              <span className={`text-xs font-medium block ${darkMode ? "text-slate-400" : "text-gray-400"}`}>אימות פקדון משטחים</span>
+            <div className={`p-3 sm:p-3.5 rounded-xl border ${darkMode ? "bg-slate-900/30 border-slate-800" : "bg-slate-50/20 border-slate-100"} space-y-1`}>
+              <span className={`text-[10px] sm:text-xs font-medium block ${darkMode ? "text-slate-400" : "text-gray-400"}`}>אימות פקדון משטחים</span>
               <div className="flex items-center gap-1.5">
-                <Info size={14} className="text-slate-400" />
-                <span className={`text-xs font-medium ${darkMode ? "text-slate-300" : "text-slate-700"}`}>
+                <Info size={13} className="text-slate-400 shrink-0" />
+                <span className={`text-[11px] sm:text-xs font-medium ${darkMode ? "text-slate-300" : "text-slate-700"}`}>
                   {order["אימות פקדון משטחים"] || "טרם בוצע אימות"}
                 </span>
               </div>
@@ -248,7 +248,7 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
           }`}>
             <div className="flex items-center gap-2">
               <RefreshCw size={15} className={`text-indigo-500 ${!isSynced ? 'animate-spin' : ''}`} />
-              <h4 className={`text-sm font-bold ${darkMode ? "text-slate-200" : "text-slate-850"}`}>עדכון סטטוס סנכרון ידני (ERP)</h4>
+              <h4 className={`text-xs sm:text-sm font-bold ${darkMode ? "text-slate-200" : "text-slate-850"}`}>עדכון סטטוס סנכרון ידני (ERP)</h4>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {[

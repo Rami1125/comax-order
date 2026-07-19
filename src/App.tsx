@@ -9,7 +9,7 @@ import OrderDetailModal from "./components/OrderDetailModal";
 import Notifications from "./components/Notifications";
 import LogisticsMap from "./components/LogisticsMap";
 import ToastContainer, { Toast } from "./components/ToastContainer";
-import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff, Trash2 } from "lucide-react";
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -293,14 +293,16 @@ export default function App() {
           ? delayedOrders[Math.floor(Math.random() * delayedOrders.length)]
           : orders[Math.floor(Math.random() * orders.length)];
         
-        const delayHours = getDelayHours(targetOrder);
-        addToast({
-          title: "עדכון סטטוס קריטי (עיכוב משלוח) ⚠️",
-          message: `הזמנה #${targetOrder["מספר הזמנה"]} עבור הלקוח "${targetOrder["שם לקוח"]}" חרגה מזמן האספקה המאושר (${delayHours > 0 ? delayHours : 48} שעות עיכוב ביחס ליעד).`,
-          type: "error",
-          orderId: targetOrder["מספר הזמנה"],
-          duration: 7500
-        });
+        if (targetOrder) {
+          const delayHours = getDelayHours(targetOrder);
+          addToast({
+            title: "עדכון סטטוס קריטי (עיכוב משלוח) ⚠️",
+            message: `הזמנה #${targetOrder["מספר הזמנה"]} עבור הלקוח "${targetOrder["שם לקוח"]}" חרגה מזמן האספקה המאושר (${delayHours > 0 ? delayHours : 48} שעות עיכוב ביחס ליעד).`,
+            type: "error",
+            orderId: targetOrder["מספר הזמנה"],
+            duration: 7500
+          });
+        }
       } else if (dice < 0.65) {
         // Trigger a new simulated incoming order
         const names = [
@@ -320,11 +322,35 @@ export default function App() {
         const randomWh = warehouses[Math.floor(Math.random() * warehouses.length)];
         const randomId = Math.floor(10000 + Math.random() * 90000);
 
+        const newSimulatedOrder: Order = {
+          "תאריך קליטה": new Date().toISOString(),
+          "מספר הזמנה": randomId,
+          "שם לקוח": randomName,
+          "מחסן": randomWh,
+          "כתובת אספקה": `רחוב: הרצל מספר: ${Math.floor(1 + Math.random() * 150)} ישוב: ${randomCity}`,
+          "פריטים": "[11511] סומסום שק גדול - כמות: " + Math.floor(1 + Math.random() * 5),
+          "סטטוס ווצאפ": "נשלח 💬",
+          "סטטוס סנכרון": "ממתין לסנכרון ⏳",
+          "אימות פקדון בלות": "תקין ✅",
+          "אימות פקדון משטחים": "תקין ✅",
+          "מסקנות נועה AI": "הזמנה חדשה שנקלטה בסימולציית זמן אמת ⚡",
+          "אימות מסלול הובלה": "אושר במערכת",
+          "isSimulated": true
+        };
+
+        // Prepend simulated order to global state
+        setOrders((prev) => {
+          const updated = [newSimulatedOrder, ...prev];
+          localStorage.setItem("sidur_noa_cached_orders", JSON.stringify(updated));
+          return updated;
+        });
+
         addToast({
           title: "הזמנה חדשה נקלטה במערכת 📦",
           message: `הזמנה חדשה #${randomId} התקבלה מלקוח "${randomName}" ליישוב אספקה ${randomCity}. מנופק ממחסן "${randomWh}".`,
           type: "success",
-          duration: 6500
+          duration: 6500,
+          orderId: randomId
         });
       } else {
         // Trigger an ERP synchronization success update
@@ -336,13 +362,30 @@ export default function App() {
           ? unsyncedOrders[Math.floor(Math.random() * unsyncedOrders.length)]
           : orders[Math.floor(Math.random() * orders.length)];
 
-        addToast({
-          title: "סנכרון ERP הושלם בהצלחה ✅",
-          message: `הזמנה #${targetOrder["מספר הזמנה"]} של "${targetOrder["שם לקוח"]}" סונכרנה בהצלחה למערכות הליבה הארגוניות.`,
-          type: "success",
-          orderId: targetOrder["מספר הזמנה"],
-          duration: 5500
-        });
+        if (targetOrder) {
+          // Update order status in React state and Cache
+          setOrders((prev) => {
+            const updated = prev.map((o) => {
+              if (o && String(o["מספר הזמנה"]) === String(targetOrder["מספר הזמנה"])) {
+                return {
+                  ...o,
+                  "סטטוס סנכרון": "סונכרן בהצלחה ✅"
+                };
+              }
+              return o;
+            });
+            localStorage.setItem("sidur_noa_cached_orders", JSON.stringify(updated));
+            return updated;
+          });
+
+          addToast({
+            title: "סנכרון ERP הושלם בהצלחה ✅",
+            message: `הזמנה #${targetOrder["מספר הזמנה"]} של "${targetOrder["שם לקוח"]}" סונכרנה בהצלחה למערכות הליבה הארגוניות.`,
+            type: "success",
+            orderId: targetOrder["מספר הזמנה"],
+            duration: 5500
+          });
+        }
       }
     }, 25000); // simulation interval (every 25 seconds)
 
@@ -485,6 +528,40 @@ export default function App() {
         duration: 4000
       });
     }
+  };
+
+  const deleteOrder = (orderId: string | number) => {
+    setOrders((prevOrders) => {
+      const updated = prevOrders.filter((o) => o && String(o["מספר הזמנה"]) !== String(orderId));
+      localStorage.setItem("sidur_noa_cached_orders", JSON.stringify(updated));
+      return updated;
+    });
+
+    if (selectedOrder && String(selectedOrder["מספר הזמנה"]) === String(orderId)) {
+      setSelectedOrder(null);
+    }
+
+    addToast({
+      title: "הזמנה נמחקה בהצלחה 🗑️",
+      message: `הזמנה #${orderId} הוסרה מרשימת הלוח הארעי.`,
+      type: "info",
+      duration: 4000
+    });
+  };
+
+  const deleteDummyOrders = () => {
+    setOrders((prevOrders) => {
+      const updated = prevOrders.filter((o) => !o.isSimulated);
+      localStorage.setItem("sidur_noa_cached_orders", JSON.stringify(updated));
+      return updated;
+    });
+
+    addToast({
+      title: "הזמנות דמה נמחקו 🗑️",
+      message: "כל הזמנות הדמה החדשות שאינן בגליון המקורי הוסרו מהתצוגה.",
+      type: "success",
+      duration: 5000
+    });
   };
 
   useEffect(() => {
@@ -723,6 +800,21 @@ export default function App() {
                 <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
                 <span>רענון לוח בקרה</span>
               </button>
+
+              {orders.some((o) => o && o.isSimulated) && (
+                <button
+                  onClick={deleteDummyOrders}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all flex items-center gap-2 cursor-pointer ${
+                    darkMode
+                      ? "bg-rose-950/40 border-rose-900/45 text-rose-300 hover:bg-rose-900/30"
+                      : "bg-rose-50 border-rose-100 text-rose-700 hover:bg-rose-100 shadow-2xs"
+                  }`}
+                  title="מחק את כל הזמנות הדמה שאינן בגליון המקורי"
+                >
+                  <Trash2 size={14} />
+                  <span>מחק הזמנות דמה 🗑️</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -763,6 +855,7 @@ export default function App() {
               onRefresh={fetchOrders}
               isLoading={isLoading}
               darkMode={darkMode}
+              onDeleteOrder={deleteOrder}
             />
           </>
         )}

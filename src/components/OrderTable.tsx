@@ -1,7 +1,7 @@
 import { useState, useMemo, ChangeEvent } from "react";
 import { Order } from "../types";
 import { getCity, formatDate, parseItems, isOrderDelayed, getDelayHours } from "../utils";
-import { Search, Filter, RefreshCw, Eye, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Calendar, AlertTriangle, Clock, MapPin } from "lucide-react";
+import { Search, Filter, RefreshCw, Eye, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Calendar, AlertTriangle, Clock, MapPin, Trash2 } from "lucide-react";
 
 interface OrderTableProps {
   orders: Order[];
@@ -10,9 +10,10 @@ interface OrderTableProps {
   onRefresh: () => void;
   isLoading: boolean;
   darkMode?: boolean;
+  onDeleteOrder?: (orderId: string | number) => void;
 }
 
-export default function OrderTable({ orders, onSelectOrder, onViewOnMap, onRefresh, isLoading, darkMode = false }: OrderTableProps) {
+export default function OrderTable({ orders, onSelectOrder, onViewOnMap, onRefresh, isLoading, darkMode = false, onDeleteOrder }: OrderTableProps) {
   // Search state
   const [searchTerm, setSearchTerm] = useState("");
   
@@ -546,6 +547,29 @@ export default function OrderTable({ orders, onSelectOrder, onViewOnMap, onRefre
                         >
                           <Eye size={15} />
                         </button>
+
+                        {onDeleteOrder && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`האם אתה בטוח שברצונך למחוק את הזמנה #${order["מספר הזמנה"]}?`)) {
+                                onDeleteOrder(order["מספר הזמנה"]);
+                              }
+                            }}
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                              isDelayed
+                                ? darkMode
+                                  ? "text-red-400 hover:text-red-200 hover:bg-red-950"
+                                  : "text-red-500 hover:text-red-700 hover:bg-red-100"
+                                : darkMode
+                                  ? "text-slate-400 hover:text-rose-400 hover:bg-slate-900"
+                                  : "text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            }`}
+                            title="מחק הזמנה"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
