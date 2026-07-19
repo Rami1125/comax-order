@@ -86,3 +86,130 @@ body {
   right: auto !important; /* Move close button to the left since map is RTL */
   color: #94a3b8 !important;
 }
+
+/* Styling for Noa AI response elements */
+.noa-html-content {
+  line-height: 1.6;
+  text-align: right;
+  direction: rtl;
+}
+
+.noa-response {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.noa-response h2 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #2563eb; /* Blue gradient tone */
+  background: linear-gradient(to left, #2563eb, #4f46e5);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.25rem;
+  border-bottom: 2px solid rgba(37, 99, 235, 0.1);
+  padding-bottom: 0.25rem;
+}
+
+.noa-response h3, .noa-response h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-top: 0.5rem;
+}
+
+.dark .noa-response h3, .dark .noa-response h4 {
+  color: #93c5fd;
+}
+
+.noa-response p {
+  font-size: 0.85rem;
+  color: inherit;
+  margin-bottom: 0.5rem;
+}
+
+.noa-response ul, .noa-response ol {
+  padding-right: 1.25rem;
+  margin-bottom: 0.5rem;
+  list-style-type: decimal;
+}
+
+.noa-response ul {
+  list-style-type: disc;
+}
+
+.noa-response li {
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Beautiful responsive tables as per prompt request */
+.noa-response table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.8rem;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+}
+
+.dark .noa-response table {
+  border-color: #334155;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.noa-response th {
+  background-color: #2563eb;
+  background-image: linear-gradient(to left, #2563eb, #3b82f6);
+  color: #ffffff;
+  text-align: right;
+  padding: 0.5rem 0.75rem;
+  font-weight: 700;
+}
+
+.noa-response td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dark .noa-response td {
+  border-bottom-color: #334155;
+}
+
+.noa-response tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+.dark .noa-response tr:nth-child(even) {
+  background-color: #1e293b;
+}
+
+.noa-response tr:hover {
+  background-color: #f1f5f9;
+}
+
+.dark .noa-response tr:hover {
+  background-color: rgba(51, 65, 85, 0.5);
+}
+
+.noa-response strong {
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.dark .noa-response strong {
+  color: #60a5fa;
+}
+
+.noa-response hr {
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+  margin: 0.5rem 0;
+}
+
+.dark .noa-response hr {
+  border-top-color: #334155;
+}

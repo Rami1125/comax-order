@@ -9,7 +9,8 @@ import OrderDetailModal from "./components/OrderDetailModal";
 import Notifications from "./components/Notifications";
 import LogisticsMap from "./components/LogisticsMap";
 import ToastContainer, { Toast } from "./components/ToastContainer";
-import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff, Trash2 } from "lucide-react";
+import NoaChat from "./components/NoaChat";
+import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff, Trash2, Sparkles } from "lucide-react";
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -29,6 +30,7 @@ export default function App() {
   const [showDelayedOnly, setShowDelayedOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeKpiFilter, setActiveKpiFilter] = useState<string | null>(null);
+  const [isNoaChatOpen, setIsNoaChatOpen] = useState(false);
 
   const handleKpiCardClick = (cardId: string) => {
     // Reset all filters first to have a clean state, then apply the specific one
@@ -679,6 +681,16 @@ export default function App() {
                 )}
               </button>
 
+              {/* Noa AI Chat Header Toggle */}
+              <button
+                onClick={() => setIsNoaChatOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 border border-indigo-500 text-white font-extrabold transition-all duration-300 cursor-pointer flex items-center gap-1.5 shadow-sm"
+                title="פתח צ'אט עם נועה AI"
+              >
+                <Sparkles size={14} className="animate-pulse" />
+                <span>צ'אט נועה AI ⚡</span>
+              </button>
+
               {/* Full Screen Mode Toggle Button */}
               <button
                 onClick={toggleFullScreen}
@@ -890,6 +902,16 @@ export default function App() {
           <p className="mt-1">ממשק Sleek Interface מתקדם המבוסס על נתוני זמן-אמת</p>
         </footer>
       )}
+
+      {/* 5. Noa AI Chat Drawer and Fullscreen Popup */}
+      <NoaChat
+        orders={orders}
+        stats={stats}
+        darkMode={darkMode}
+        isOpen={isNoaChatOpen}
+        onClose={() => setIsNoaChatOpen(false)}
+        onOpen={() => setIsNoaChatOpen(true)}
+      />
 
       {/* Floating Real-time Toast Notifications Container */}
       <ToastContainer

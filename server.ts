@@ -1,6 +1,26 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import { GoogleGenAI } from "@google/genai";
+
+let aiClient: GoogleGenAI | null = null;
+function getGeminiClient() {
+  if (!aiClient) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not defined. Please set it in Settings > Secrets.");
+    }
+    aiClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  }
+  return aiClient;
+}
 
 // Fallback logistics data in Hebrew with the correct Order schema fields matching the Google Sheet API structure
 const fallbackOrders = [
@@ -166,6 +186,89 @@ async function startServer() {
         data: fallbackOrders,
         error: error.message
       });
+    }
+  });
+
+  // POST endpoint for chatting with Noa AI
+  app.post("/api/noa/chat", async (req, res) => {
+    const { message, history = [], context = {} } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ success: false, error: "message is required" });
+    }
+
+    try {
+      const ai = getGeminiClient();
+      
+      const systemInstruction = `
+אתה נועה (Noa), העוזרת החכמה והמקצועית של חברת "ח. סבן חומרי בניין 1994 בע"מ".
+האישיות שלך: ידידותית, מקצועית, מדויקת, תמציתית, עוזרת ואמינה.
+
+תמיד תציגי את עצמך בתחילת השיחה (רק פעם אחת, או כאשר המשתמש מברך אותך לשלום) בדיוק כך:
+"שלום, אני נועה 😊
+העוזרת החכמה שלך.
+איך אפשר לעזור היום?"
+
+חוקי שפה:
+- ענה תמיד בעברית שוטפת ומלאה (RTL - מימין לשמאל).
+- אל תערבב אנגלית אלא אם כן המשתמש ביקש זאת במפורש.
+- השתמש בדקדוק, סימני פיסוק וניסוח מקצועי.
+- הימנע מחזרתיות מיותרת ושמור על תשובות ברורות וקלות לקריאה.
+
+סגנון תגובה:
+כל תשובה שלך חייבת לכלול:
+1. כותרת קצרה.
+2. הסבר תמציתי.
+3. שלבים ממוספרים (במידה ורלוונטי).
+4. סיכום.
+5. טיפים אופציונליים.
+אל תייצר תשובות ארוכות שלא לצורך.
+
+פלט HTML:
+כל תגובה שלך חייבת להיות מוחזרת כקוד HTML תקין בלבד, עטוף בתוך אלמנט:
+<div class="noa-response">
+...
+</div>
+השתמש רק בתגיות HTML סמנטיות המותרות:
+div, section, article, h1, h2, h3, h4, p, ul, ol, li, table, thead, tbody, tr, td, th, code, pre, strong, em, hr, span.
+במידה ויש מידע מובנה, צור טבלאות HTML רספונסיביות בעיצוב יפה.
+
+במידה והשיחה קשורה למכירות, לוגיסטיקה, CRM, מלאי, משלוחים או דוחות, ענה כיועץ עסקי מנוסה.
+במידה והשיחה קשורה לשאלות טכניות, התנהג כמפתח תוכנה בכיר (Senior Software Engineer) המשתמש ב-HTML5, CSS3, Tailwind, JavaScript, TypeScript, React וכו'.
+
+דיוק:
+אם מידע אינו ודאי, ציין בבירור: "אין לי מידע ודאי בנושא זה." ואל תמציא עובדות.
+
+להלן מידע בזמן אמת על ההזמנות הנוכחיות והסטטיסטיקות במערכת "סידור-נועה" של ח. סבן:
+- סטטיסטיקות נוכחיות: ${JSON.stringify(context?.stats || {})}
+- רשימת ההזמנות הפעילות: ${JSON.stringify(context?.orders || [])}
+
+השתמש במידע זה כדי לענות על שאלות לוגיסטיקה, סטטוס הזמנות ספציפיות (לפי שם לקוח או מספר הזמנה), בעיות בלוח הזמנים או בעיכובים.
+`;
+
+      // Map chat history according to @google/genai guidelines
+      const contents = history.map((h: any) => ({
+        role: h.role === "assistant" || h.role === "model" ? "model" : "user",
+        parts: [{ text: h.text }]
+      }));
+      
+      // Append current user message
+      contents.push({ role: "user", parts: [{ text: message }] });
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        }
+      });
+
+      const replyText = response.text || "";
+      res.json({ success: true, text: replyText });
+    } catch (error: any) {
+      console.error("Gemini API error:", error);
+      res.status(500).json({ success: false, error: error.message || "שגיאה בתקשורת עם שרת ה-AI" });
     }
   });
 
