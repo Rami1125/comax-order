@@ -327,6 +327,37 @@ export default function App() {
     }
   };
 
+  const updateOrderSyncStatus = (orderId: string | number, newStatus: string) => {
+    setOrders((prevOrders) => {
+      const updated = prevOrders.map((o) => {
+        if (o && String(o["מספר הזמנה"]) === String(orderId)) {
+          return {
+            ...o,
+            "סטטוס סנכרון": newStatus,
+          };
+        }
+        return o;
+      });
+      
+      // Keep selectedOrder in sync
+      if (selectedOrder && String(selectedOrder["מספר הזמנה"]) === String(orderId)) {
+        const updatedSelected = updated.find(o => o && String(o["מספר הזמנה"]) === String(orderId));
+        if (updatedSelected) {
+          setSelectedOrder(updatedSelected);
+        }
+      }
+
+      return updated;
+    });
+
+    addToast({
+      title: "עדכון סטטוס סנכרון 🔄",
+      message: `סטטוס הסנכרון של הזמנה #${orderId} עודכן ל- "${newStatus}".`,
+      type: "success",
+      duration: 4000
+    });
+  };
+
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -604,6 +635,7 @@ export default function App() {
           setMapFocusedOrder(order);
           setActiveView("map");
         }}
+        onUpdateSyncStatus={updateOrderSyncStatus}
         darkMode={darkMode}
       />
 

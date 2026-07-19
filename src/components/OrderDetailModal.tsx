@@ -1,16 +1,17 @@
 import { useMemo } from "react";
 import { Order } from "../types";
 import { parseItems, formatDate } from "../utils";
-import { X, Clipboard, MapPin, Warehouse, MessageSquare, CheckCircle2, ShoppingBag, Sparkles, AlertCircle, TrendingUp, Info, Share2 } from "lucide-react";
+import { X, Clipboard, MapPin, Warehouse, MessageSquare, CheckCircle2, ShoppingBag, Sparkles, AlertCircle, TrendingUp, Info, Share2, RefreshCw } from "lucide-react";
 
 interface OrderDetailModalProps {
   order: Order | null;
   onClose: () => void;
   onViewOnMap?: (order: Order) => void;
+  onUpdateSyncStatus?: (orderId: string | number, newStatus: string) => void;
   darkMode?: boolean;
 }
 
-export default function OrderDetailModal({ order, onClose, onViewOnMap, darkMode = false }: OrderDetailModalProps) {
+export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdateSyncStatus, darkMode = false }: OrderDetailModalProps) {
   if (!order) return null;
 
   const parsedProducts = parseItems(order["פריטים"]);
@@ -236,6 +237,40 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, darkMode
                   {order["אימות פקדון משטחים"] || "טרם בוצע אימות"}
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Manual Sync Status Update Section */}
+          <div className={`p-4 rounded-xl border space-y-3 transition-colors duration-300 ${
+            darkMode 
+              ? "border-slate-800 bg-slate-900/40" 
+              : "border-slate-200 bg-slate-50/50"
+          }`}>
+            <div className="flex items-center gap-2">
+              <RefreshCw size={15} className={`text-indigo-500 ${!isSynced ? 'animate-spin' : ''}`} />
+              <h4 className={`text-sm font-bold ${darkMode ? "text-slate-200" : "text-slate-850"}`}>עדכון סטטוס סנכרון ידני (ERP)</h4>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { label: "סונכרן בהצלחה ✅", value: "סונכרן בהצלחה ✅", color: "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/20" },
+                { label: "ממתין לסנכרון ⏳", value: "ממתין לסנכרון ⏳", color: "bg-amber-500/10 border-amber-500/20 text-amber-600 hover:bg-amber-500/20" },
+                { label: "בוטל ❌", value: "בוטל ❌", color: "bg-red-500/10 border-red-500/20 text-red-600 hover:bg-red-500/20" }
+              ].map((opt) => {
+                const isSelected = order["סטטוס סנכרון"] === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => onUpdateSyncStatus?.(order["מספר הזמנה"], opt.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-300 cursor-pointer flex items-center gap-1.5 ${
+                      isSelected 
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/10" 
+                        : `${opt.color}`
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
