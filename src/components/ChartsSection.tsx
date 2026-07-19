@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Order } from "../types";
-import { getCity } from "../utils";
+import { getCity, parseItems } from "../utils";
 import {
   BarChart,
   Bar,
@@ -108,6 +108,57 @@ export default function ChartsSection({ orders, darkMode = false }: ChartsSectio
     name,
     value
   }));
+
+  // --- Prepare Warehouse Inventory & Real-Time Utilization Data ---
+  const warehouseUtilizationData = useMemo(() => {
+    const capacities: Record<string, number> = {
+      "מחסן מרכז": 180,
+      "מחסן צפון": 120,
+      "מחסן דרום (שפלה)": 100,
+      "אחר": 80,
+    };
+
+    const dispatchedVolumes: Record<string, number> = {
+      "מחסן מרכז": 0,
+      "מחסן צפון": 0,
+      "מחסן דרום (שפלה)": 0,
+      "אחר": 0,
+    };
+
+    const orderCounts: Record<string, number> = {
+      "מחסן מרכז": 0,
+      "מחסן צפון": 0,
+      "מחסן דרום (שפלה)": 0,
+      "אחר": 0,
+    };
+
+    orders.forEach((o) => {
+      let wh = o["מחסן"] ? o["מחסן"].trim() : "אחר";
+      if (!capacities[wh]) {
+        const matched = Object.keys(capacities).find(key => wh.includes(key) || key.includes(wh));
+        wh = matched || "אחר";
+      }
+
+      const parsed = parseItems(o["פריטים"]);
+      const qtySum = parsed.reduce((sum, item) => sum + (item.quantity || 1), 0);
+      
+      dispatchedVolumes[wh] = (dispatchedVolumes[wh] || 0) + qtySum;
+      orderCounts[wh] = (orderCounts[wh] || 0) + 1;
+    });
+
+    return Object.keys(capacities).map((wh) => {
+      const volume = dispatchedVolumes[wh] || 0;
+      const capacity = capacities[wh];
+      const utilizationPercent = Math.min(100, Math.round((volume / capacity) * 100));
+      return {
+        name: wh,
+        volume,
+        capacity,
+        utilization: utilizationPercent,
+        ordersCount: orderCounts[wh] || 0,
+      };
+    });
+  }, [orders]);
 
   // --- Prepare Noa AI Conclusions Stats ---
   const noaCounts: Record<string, number> = {};
@@ -461,6 +512,107 @@ export default function ChartsSection({ orders, darkMode = false }: ChartsSectio
                 </div>
               );
             })}
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Real-Time Warehouse Inventory & Utilization */}
+      <div
+        id="warehouse-utilization-chart-panel"
+        className={`lg:col-span-2 rounded-2xl p-5 shadow-xs border transition-colors duration-300 ${
+          darkMode
+            ? "bg-[#111827]/80 backdrop-blur-md border-slate-800/80 shadow-slate-950/20 text-white"
+            : "glass-panel border-slate-200/50 bg-white text-slate-800"
+        }`}
+      >
+        <div className={`flex items-center gap-2.5 mb-5 border-b pb-3 ${darkMode ? "border-slate-800/80" : "border-slate-100"}`}>
+          <div className={`p-2 rounded-lg ${darkMode ? "bg-cyan-950/50 text-cyan-400" : "bg-cyan-50 text-cyan-600"}`}>
+            <Warehouse size={18} />
+          </div>
+          <div>
+            <h3 className={`font-semibold ${darkMode ? "text-slate-100" : "text-slate-800"}`}>ניצולת מחסנים ומלאי בזמן אמת</h3>
+            <p className={`text-xs ${darkMode ? "text-slate-400" : "text-gray-400"}`}>ניתוח נפח ההזמנות המנופקות (יחידות פריט) מול קיבולת שירות מקסימלית</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+          {/* Detailed Progress Bars */}
+          <div className="lg:col-span-1 space-y-4">
+            <h4 className={`text-xs font-bold uppercase tracking-wider ${darkMode ? "text-slate-400" : "text-slate-500"}`}>סטטוס ניצולת שוטף</h4>
+            <div className="space-y-3.5">
+              {warehouseUtilizationData.map((item, idx) => {
+                const colors = [
+                  { text: "text-blue-500", bg: "bg-blue-500", track: "bg-blue-500/10" },
+                  { text: "text-emerald-500", bg: "bg-emerald-500", track: "bg-emerald-500/10" },
+                  { text: "text-amber-500", bg: "bg-amber-500", track: "bg-amber-500/10" },
+                  { text: "text-indigo-500", bg: "bg-indigo-500", track: "bg-indigo-500/10" },
+                ];
+                const clr = colors[idx % colors.length];
+                return (
+                  <div key={item.name} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs font-medium">
+                      <span className={darkMode ? "text-slate-200" : "text-slate-700"}>{item.name}</span>
+                      <span className={`font-mono font-semibold ${clr.text}`}>{item.utilization}% ({item.volume}/{item.capacity} יח')</span>
+                    </div>
+                    <div className={`h-2 w-full rounded-full overflow-hidden ${darkMode ? "bg-slate-800" : "bg-slate-100"}`}>
+                      <div
+                        className={`h-full rounded-full transition-all duration-1000 ${clr.bg}`}
+                        style={{ width: `${item.utilization}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-400 font-mono">
+                      <span>{item.ordersCount} הזמנות פעילות</span>
+                      <span>קיבולת: {item.capacity}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Graphical Comparison Bar Chart */}
+          <div className="lg:col-span-2 h-64 w-full font-mono text-xs">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                layout="vertical"
+                data={warehouseUtilizationData}
+                margin={{ top: 10, right: 10, left: -10, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={darkMode ? "#1f2937" : "#f1f5f9"} />
+                <XAxis type="number" tick={{ fill: darkMode ? "#94a3b8" : "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fill: darkMode ? "#94a3b8" : "#64748b", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={90}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "#1e293b",
+                    border: "none",
+                    borderRadius: "8px",
+                    color: "#fff",
+                    fontSize: "12px",
+                    direction: "rtl"
+                  }}
+                  formatter={(value: any, name: any) => {
+                    const label = name === "volume" ? "נפח מנופק" : "קיבולת מלאי";
+                    return [`${value} יחידות`, label];
+                  }}
+                />
+                <Legend 
+                  verticalAlign="top" 
+                  height={36} 
+                  formatter={(value) => {
+                    return value === "volume" ? "נפח מנופק בפועל" : "קיבולת מקסימלית";
+                  }}
+                />
+                <Bar dataKey="volume" fill="#06b6d4" radius={[0, 4, 4, 0]} barSize={12} />
+                <Bar dataKey="capacity" fill={darkMode ? "#334155" : "#cbd5e1"} radius={[0, 4, 4, 0]} barSize={12} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
