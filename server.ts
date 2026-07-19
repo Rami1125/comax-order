@@ -1,7 +1,9 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+
+const app = express();
+app.use(express.json());
 
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient() {
@@ -22,7 +24,7 @@ function getGeminiClient() {
   return aiClient;
 }
 
-// Fallback logistics data in Hebrew with the correct Order schema fields matching the Google Sheet API structure
+// Fallback logistics data in Hebrew
 const fallbackOrders = [
   {
     "תאריך קליטה": "2026-07-15T08:30:00.000Z",
@@ -53,7 +55,7 @@ const fallbackOrders = [
     "אימות מסלול הובלה": "טרם בוצע"
   },
   {
-    "תאריך קליטה": "2026-07-12T14:20:00.000Z", // Delayed over 48 hours
+    "תאריך קליטה": "2026-07-12T14:20:00.000Z",
     "מספר הזמנה": 1003,
     "שם לקוח": "משה כהן",
     "מחסן": "מחסן דרום (שפלה)",
@@ -125,7 +127,7 @@ const fallbackOrders = [
   {
     "תאריך קליטה": "2026-07-16T17:20:00.000Z",
     "מספר הזמנה": 1008,
-    "שם לקוח": "טלי מזור",
+    "ש = לקוח": "טלי מזור",
     "מחסן": "מחסן צפון",
     "כתובת אספקה": "רחוב: הרצל מספר: 104 ישוב: נתניה",
     "פריטים": "[11511] סומסום שק גדול - כמות: 4",
@@ -152,55 +154,46 @@ const fallbackOrders = [
   }
 ];
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
-
-  app.use(express.json());
-
-  // API Route to fetch from Google Sheets and return unified format
-  app.get("/api/orders", async (req, res) => {
-    const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbyKxsXx-mZ-XRcYTLKVp_BrGo5Vic7YvvI5lVpnzTd5_hmTGwMQc6QD-f2j9azlLar0Gg/exec";
-    
-    try {
-      console.log("Fetching orders from Google Sheets API...");
-      const response = await fetch(GOOGLE_SHEET_URL);
-      if (!response.ok) {
-        throw new Error(`Google Sheets responded with status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log("Successfully fetched Google Sheets data. Sample item:", data && Array.isArray(data) ? data[0] : typeof data);
-      
-      // Send the data back
-      res.json({
-        success: true,
-        source: "google_sheets",
-        data: data
-      });
-    } catch (error: any) {
-      console.error("Error fetching from Google Sheets. Using high-quality fallback data.", error.message);
-      res.json({
-        success: false,
-        source: "fallback",
-        data: fallbackOrders,
-        error: error.message
-      });
+// API Route to fetch from Google Sheets
+app.get("/api/orders", async (req, res) => {
+  const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbyKxsXx-mZ-XRcYTLKVp_BrGo5Vic7YvvI5lVpnzTd5_hmTGwMQc6QD-f2j9azlLar0Gg/exec";
+  
+  try {
+    console.log("Fetching orders from Google Sheets API...");
+    const response = await fetch(GOOGLE_SHEET_URL);
+    if (!response.ok) {
+      throw new Error(`Google Sheets responded with status: ${response.status}`);
     }
-  });
-
-  // POST endpoint for chatting with Noa AI
-  app.post("/api/noa/chat", async (req, res) => {
-    const { message, history = [], context = {} } = req.body;
     
-    if (!message) {
-      return res.status(400).json({ success: false, error: "message is required" });
-    }
+    const data = await response.json();
+    res.json({
+      success: true,
+      source: "google_sheets",
+      data: data
+    });
+  } catch (error: any) {
+    console.error("Error fetching from Google Sheets. Using high-quality fallback data.", error.message);
+    res.json({
+      success: false,
+      source: "fallback",
+      data: fallbackOrders,
+      error: error.message
+    });
+  }
+});
 
-    try {
-      const ai = getGeminiClient();
-      
-      const systemInstruction = `
+// POST endpoint for chatting with Noa AI
+app.post("/api/noa/chat", async (req, res) => {
+  const { message, history = [], context = {} } = req.body;
+  
+  if (!message) {
+    return res.status(400).json({ success: false, error: "message is required" });
+  }
+
+  try {
+    const ai = getGeminiClient();
+    
+    const systemInstruction = `
 אתה "נועה AI" (Noa AI), עוזרת לוגיסטית חדה ומדויקת להפליא עבור מערכת Comax Order / SabanOS (וחברת ח. סבן חומרי בניין 1994 בע"מ).
 
 התנהגות ליבה (Core Behavior):
@@ -226,34 +219,34 @@ async function startServer() {
 - רשימת ההזמנות הפעילות: ${JSON.stringify(context?.orders || [])}
 `;
 
-      // Map chat history according to @google/genai guidelines
-      const contents = history.map((h: any) => ({
-        role: h.role === "assistant" || h.role === "model" ? "model" : "user",
-        parts: [{ text: h.text }]
-      }));
-      
-      // Append current user message
-      contents.push({ role: "user", parts: [{ text: message }] });
+    const contents = history.map((h: any) => ({
+      role: h.role === "assistant" || h.role === "model" ? "model" : "user",
+      parts: [{ text: h.text }]
+    }));
+    
+    contents.push({ role: "user", parts: [{ text: message }] });
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents,
-        config: {
-          systemInstruction,
-          temperature: 0.7,
-        }
-      });
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents,
+      config: {
+        systemInstruction,
+        temperature: 0.7,
+      }
+    });
 
-      const replyText = response.text || "";
-      res.json({ success: true, text: replyText });
-    } catch (error: any) {
-      console.error("Gemini API error:", error);
-      res.status(500).json({ success: false, error: error.message || "שגיאה בתקשורת עם שרת ה-AI" });
-    }
-  });
+    res.json({ success: true, text: response.text || "" });
+  } catch (error: any) {
+    console.error("Gemini API error:", error);
+    res.status(500).json({ success: false, error: error.message || "שגיאה בתקשורת עם שרת ה-AI" });
+  }
+});
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+// האזנה מקומית או התקנת Middleware של Vite לפיתוח מקומי בלבד
+async function setupEnvironment() {
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    // Dynamic import מונע מ-Vite להיטען ולייצר overhead או קריסה בשרתי Vercel
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -267,9 +260,16 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // הפעלת האזנה רק בסביבת פיתוח מקומית ולא ב-Vercel Serverless
+  if (!process.env.VERCEL) {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running locally on http://localhost:${PORT}`);
+    });
+  }
 }
 
-startServer();
+setupEnvironment();
+
+// ייצוא האפליקציה לטובת המנוע של Vercel
+export default app;
