@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { Order, DashboardStats } from "./types";
 import { calculateStats, getDelayHours } from "./utils";
 import { playNotificationSound } from "./utils/sound";
@@ -10,7 +11,7 @@ import Notifications from "./components/Notifications";
 import LogisticsMap from "./components/LogisticsMap";
 import ToastContainer, { Toast } from "./components/ToastContainer";
 import NoaChat from "./components/NoaChat";
-import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff, Trash2, Sparkles } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff, Trash2, Sparkles, Menu, Calendar, X } from "lucide-react";
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -31,6 +32,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [activeKpiFilter, setActiveKpiFilter] = useState<string | null>(null);
   const [isNoaChatOpen, setIsNoaChatOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleKpiCardClick = (cardId: string) => {
     // Reset all filters first to have a clean state, then apply the specific one
@@ -631,8 +633,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* Dynamic Clock, Theme Toggle & Meta Info */}
-            <div className="flex items-center gap-3 text-xs font-medium">
+            {/* Desktop Navigation Controls (Hidden on Mobile/Tablet) */}
+            <div className="hidden lg:flex items-center gap-3 text-xs font-medium">
               {/* Status indicators */}
               <div className="hidden sm:flex items-center gap-3 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700">
                 {isOnline ? (
@@ -717,6 +719,42 @@ export default function App() {
               <div className="bg-slate-800 text-slate-100 font-mono px-3.5 py-1.5 rounded-xl text-center shadow-inner tracking-wider">
                 {currentTime || "00:00:00"}
               </div>
+            </div>
+
+            {/* Mobile/Tablet Quick Controls (Hidden on Desktop) */}
+            <div className="flex lg:hidden items-center gap-2">
+              {/* Theme Toggle Button */}
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-755 border border-slate-700 text-slate-100 cursor-pointer flex items-center justify-center"
+                title="החלף מצב תצוגה"
+              >
+                {darkMode ? (
+                  <Sun size={15} className="text-amber-400" />
+                ) : (
+                  <Moon size={15} className="text-slate-300" />
+                )}
+              </button>
+
+              {/* Noa AI Chat Header Quick Toggle */}
+              <button
+                onClick={() => setIsNoaChatOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 border border-indigo-500 text-white font-extrabold cursor-pointer flex items-center gap-1 shadow-sm"
+                title="פתח צ'אט עם נועה"
+              >
+                <Sparkles size={13} className="animate-pulse" />
+                <span className="text-[11px] sm:text-xs">נועה AI ⚡</span>
+              </button>
+
+              {/* Hamburger Button */}
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-100 cursor-pointer flex items-center justify-center"
+                aria-label="תפריט ניווט צדדי"
+                title="פתח תפריט צד"
+              >
+                <Menu size={16} />
+              </button>
             </div>
           </div>
         </header>
@@ -902,6 +940,193 @@ export default function App() {
           <p className="mt-1">ממשק Sleek Interface מתקדם המבוסס על נתוני זמן-אמת</p>
         </footer>
       )}
+
+      {/* 5. Noa AI Chat Drawer and Fullscreen Popup */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-slate-950/80 z-50 backdrop-blur-xs"
+            />
+
+            {/* Sidebar drawer panel */}
+            <motion.div
+              dir="rtl"
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className={`fixed top-0 right-0 h-screen w-[310px] max-w-[85vw] z-51 shadow-2xl flex flex-col border-l transition-all duration-300 ${
+                darkMode 
+                  ? "bg-slate-900 border-slate-800 text-white" 
+                  : "bg-white border-slate-200 text-slate-800"
+              }`}
+            >
+              {/* Header */}
+              <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#0F172A] text-white">
+                <div className="flex items-center gap-2.5">
+                  <img src="/logo.jpg" alt="لוגו" className="w-8 h-8 rounded-lg object-cover" />
+                  <div>
+                    <h3 className="font-extrabold text-sm text-white">סידור-נועה</h3>
+                    <p className="text-[9px] text-slate-400">ח. סבן חומרי בניין</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Drawer Content */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                {/* System Status Indicators */}
+                <div className={`p-3.5 rounded-xl border ${
+                  darkMode ? "bg-slate-950/40 border-slate-850" : "bg-slate-50 border-slate-100"
+                }`}>
+                  <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-wider">חיבור וסנכרון מערכת</p>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? "bg-emerald-500" : "bg-rose-500 animate-pulse"}`} />
+                    <span className="text-xs font-bold">
+                      {isOnline ? "מחובר ומקוון" : "מצב אופליין פעיל"}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {isOnline 
+                      ? offlineSyncQueue.length > 0 
+                        ? `ממתין לסנכרון ${offlineSyncQueue.length} עדכונים`
+                        : "כל הנתונים מסונכרנים ל-Google Sheets"
+                      : "עדכונים ישמרו מקומית ויסונכרנו אוטומטית"}
+                  </p>
+                </div>
+
+                {/* Clock */}
+                <div className={`p-3.5 rounded-xl border text-center ${
+                  darkMode ? "bg-slate-950/40 border-slate-850 text-slate-200" : "bg-slate-50 border-slate-100 text-slate-700"
+                }`}>
+                  <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">שעון מערכת מקומי</p>
+                  <span className="font-mono text-base font-bold tracking-widest text-indigo-500">{currentTime || "00:00:00"}</span>
+                </div>
+
+                {/* Navigation Links */}
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-wider mb-2">אפשרויות ניווט וכלים</p>
+                  
+                  {/* Dashboard / Schedule Option */}
+                  <button
+                    onClick={() => {
+                      setActiveView("dashboard");
+                      setIsMobileMenuOpen(false);
+                      setTimeout(() => {
+                        const tbl = document.getElementById("order-table-section");
+                        tbl?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }, 200);
+                    }}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl text-right transition-all cursor-pointer font-medium text-xs sm:text-sm ${
+                      activeView === "dashboard"
+                        ? "bg-indigo-650 text-white shadow-md font-bold"
+                        : darkMode
+                          ? "bg-slate-900 hover:bg-slate-800/80 border border-slate-800 text-slate-200"
+                          : "bg-slate-50 hover:bg-slate-100/80 border border-slate-100 text-slate-700"
+                    }`}
+                  >
+                    <LayoutDashboard size={16} />
+                    <span>לוח בקרה ולוח הזמנות</span>
+                  </button>
+
+                  {/* Map Option */}
+                  <button
+                    onClick={() => {
+                      setActiveView("map");
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl text-right transition-all cursor-pointer font-medium text-xs sm:text-sm ${
+                      activeView === "map"
+                        ? "bg-indigo-650 text-white shadow-md font-bold"
+                        : darkMode
+                          ? "bg-slate-900 hover:bg-slate-800/80 border border-slate-800 text-slate-200"
+                          : "bg-slate-50 hover:bg-slate-100/80 border border-slate-100 text-slate-700"
+                    }`}
+                  >
+                    <Map size={16} />
+                    <span>מפת הפצה ארצית 🗺️</span>
+                  </button>
+
+                  {/* Noa Chat Option */}
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setTimeout(() => {
+                        setIsNoaChatOpen(true);
+                      }, 250);
+                    }}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl text-right transition-all cursor-pointer font-medium text-xs sm:text-sm border ${
+                      darkMode 
+                        ? "bg-slate-900 hover:bg-slate-850 border-slate-800 text-indigo-400" 
+                        : "bg-indigo-50/55 hover:bg-indigo-50 border-indigo-100 text-indigo-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Sparkles size={16} className="animate-pulse text-indigo-500" />
+                      <span className="font-bold">צ'אט עם נועה AI ⚡</span>
+                    </div>
+                    <span className="text-[10px] bg-indigo-600 text-white font-bold px-2 py-0.5 rounded-full">פעיל</span>
+                  </button>
+                </div>
+
+                {/* Additional controls */}
+                <div className="space-y-1.5 pt-4 border-t border-slate-800/20">
+                  <p className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-wider mb-2">פעולות מהירות</p>
+                  
+                  {/* Refresh */}
+                  <button
+                    onClick={() => {
+                      fetchOrders();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    disabled={isLoading}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl text-right transition-all cursor-pointer font-medium text-xs sm:text-sm border ${
+                      darkMode 
+                        ? "bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300" 
+                        : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+                    <span>רענון נתונים מלא</span>
+                  </button>
+
+                  {/* Dark mode switcher in sidebar */}
+                  <button
+                    onClick={() => setDarkMode(!darkMode)}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl text-right transition-all cursor-pointer font-medium text-xs sm:text-sm border ${
+                      darkMode 
+                        ? "bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300" 
+                        : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {darkMode ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-indigo-600" />}
+                      <span>{darkMode ? "מעבר למצב בהיר" : "מעבר למצב כהה"}</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-800/10 text-center text-[10px] text-slate-500 bg-[#0F172A]/5">
+                <p>© {new Date().getFullYear()} ח. סבן חומרי בניין בע"מ</p>
+                <p className="mt-0.5 font-bold text-indigo-500">נועה AI - פותח עבורכם 😊</p>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* 5. Noa AI Chat Drawer and Fullscreen Popup */}
       <NoaChat
