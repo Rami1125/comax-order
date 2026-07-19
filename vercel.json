@@ -1,25 +1,8 @@
 {
-  "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "server.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/noa/chat",
-      "methods": ["POST", "OPTIONS"],
-      "dest": "server.ts"
-    },
-    {
-      "src": "/api/orders",
-      "methods": ["GET"],
-      "dest": "server.ts"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
+      "source": "/api/:path*",
+      "destination": "/api/index.ts"
     }
   ]
 }
