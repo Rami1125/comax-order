@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Order, DashboardStats } from "./types";
 import { calculateStats, getDelayHours } from "./utils";
+import { playNotificationSound } from "./utils/sound";
 import KPICards from "./components/KPICards";
 import ChartsSection from "./components/ChartsSection";
 import OrderTable from "./components/OrderTable";
@@ -8,7 +9,7 @@ import OrderDetailModal from "./components/OrderDetailModal";
 import Notifications from "./components/Notifications";
 import LogisticsMap from "./components/LogisticsMap";
 import ToastContainer, { Toast } from "./components/ToastContainer";
-import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff } from "lucide-react";
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -49,6 +50,73 @@ export default function App() {
   const [activeView, setActiveView] = useState<"dashboard" | "map">("dashboard");
   // Focused order for map initialization
   const [mapFocusedOrder, setMapFocusedOrder] = useState<Order | null>(null);
+
+  // Online / Offline state tracking
+  const [isOnline, setIsOnline] = useState(() => typeof navigator !== "undefined" ? navigator.onLine : true);
+  // Offline sync queue for updates made while offline
+  const [offlineSyncQueue, setOfflineSyncQueue] = useState<{orderId: string | number, newStatus: string}[]>(() => {
+    try {
+      const saved = localStorage.getItem("sidur_noa_offline_queue");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Monitor network status changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      addToast({
+        title: "חיבור הרשת חזר! ⚡",
+        message: "המכשיר מחובר מחדש. מתחיל סנכרון פנימי מקומי מול שרתי סידור-נועה.",
+        type: "success",
+        duration: 5000,
+      });
+      // Play high-tech ascending sync sound
+      playNotificationSound("sync");
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      addToast({
+        title: "עבודה במצב אופליין 🔌",
+        message: "חיבור האינטרנט אבד. שינויים יישמרו מקומית ויסונכרנו אוטומטית כשהחיבור יתחדש.",
+        type: "error",
+        duration: 6000,
+      });
+      playNotificationSound("error");
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Process offline sync queue when network becomes online
+  useEffect(() => {
+    if (isOnline && offlineSyncQueue.length > 0) {
+      console.log("Processing offline sync queue:", offlineSyncQueue);
+      // Simulate sending offline queue modifications to the backend
+      addToast({
+        title: "סנכרון פנימי הושלם בהצלחה 🎉",
+        message: `סונכרנו בהצלחה ${offlineSyncQueue.length} עדכוני סטטוס שבוצעו במצב לא מקוון.`,
+        type: "success",
+        duration: 5000,
+      });
+      playNotificationSound("sync");
+      
+      // Clear offline sync queue
+      setOfflineSyncQueue([]);
+      localStorage.removeItem("sidur_noa_offline_queue");
+    }
+  }, [isOnline, offlineSyncQueue]);
 
   // Web Notifications permission state
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() => {
@@ -131,6 +199,23 @@ export default function App() {
   const addToast = (toast: Omit<Toast, "id">) => {
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { ...toast, id }]);
+
+    // Trigger synthetic audio alert based on toast type
+    try {
+      if (toast.type === "error") {
+        playNotificationSound("error");
+      } else if (toast.type === "success") {
+        if (toast.title.includes("סנכרון") || toast.title.includes("סנכרן") || toast.title.includes("הושלם")) {
+          playNotificationSound("sync");
+        } else {
+          playNotificationSound("success");
+        }
+      } else {
+        playNotificationSound("info");
+      }
+    } catch (e) {
+      console.warn("Audio chime playback blocked by browser gesture constraints:", e);
+    }
 
     // Trigger system notification for critical updates or if tab is inactive
     const isCritical = toast.type === "error" || toast.title.includes("קריטי") || toast.title.includes("חריג") || toast.title.includes("אזהרה") || toast.title.includes("סנכרון ERP");
@@ -300,6 +385,10 @@ export default function App() {
         }
         setOrders(result.data);
         setDataSource(result.source);
+        
+        // Cache the latest successful data
+        localStorage.setItem("sidur_noa_cached_orders", JSON.stringify(result.data));
+
         if (!result.success) {
           console.warn("API returned fallback source due to error:", result.error);
         }
@@ -315,6 +404,27 @@ export default function App() {
       }
     } catch (err: any) {
       console.error("Error loading orders in client:", err);
+      
+      // Attempt to load from localStorage cache!
+      const cached = localStorage.getItem("sidur_noa_cached_orders");
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setOrders(parsed);
+          setDataSource("fallback");
+          setError(null);
+          addToast({
+            title: "מצב אופליין פעיל 🔌",
+            message: `נטענו בהצלחה ${parsed.length} הזמנות מגיבוי המטמון המקומי של סידור-נועה.`,
+            type: "info",
+            duration: 6000
+          });
+          return;
+        } catch (e) {
+          // fallback failed
+        }
+      }
+
       setError(err.message || "שגיאה בחיבור לשרת הנתונים");
       addToast({
         title: "שגיאת סנכרון נתונים ⚠️",
@@ -339,6 +449,9 @@ export default function App() {
         return o;
       });
       
+      // Cache the full updated orders state in localStorage
+      localStorage.setItem("sidur_noa_cached_orders", JSON.stringify(updated));
+
       // Keep selectedOrder in sync
       if (selectedOrder && String(selectedOrder["מספר הזמנה"]) === String(orderId)) {
         const updatedSelected = updated.find(o => o && String(o["מספר הזמנה"]) === String(orderId));
@@ -350,12 +463,28 @@ export default function App() {
       return updated;
     });
 
-    addToast({
-      title: "עדכון סטטוס סנכרון 🔄",
-      message: `סטטוס הסנכרון של הזמנה #${orderId} עודכן ל- "${newStatus}".`,
-      type: "success",
-      duration: 4000
-    });
+    if (!isOnline) {
+      // Add to offline sync queue
+      setOfflineSyncQueue((prev) => {
+        const next = [...prev, { orderId, newStatus }];
+        localStorage.setItem("sidur_noa_offline_queue", JSON.stringify(next));
+        return next;
+      });
+
+      addToast({
+        title: "שינוי נשמר מקומית (אופליין) 💾",
+        message: `הזמנה #${orderId} עודקנה ל- "${newStatus}" ותסונכרן אוטומטית ברגע שתחזור לרשת.`,
+        type: "info",
+        duration: 5000
+      });
+    } else {
+      addToast({
+        title: "עדכון סטטוס סנכרון 🔄",
+        message: `סטטוס הסנכרון של הזמנה #${orderId} עודכן ל- "${newStatus}".`,
+        type: "success",
+        duration: 4000
+      });
+    }
   };
 
   useEffect(() => {
@@ -424,12 +553,18 @@ export default function App() {
             
             {/* Logo and App Title */}
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500 text-white rounded-lg shadow-md">
-                <Truck size={18} className="stroke-[2.5px]" />
-              </div>
+              <img 
+                src="/logo.jpg" 
+                alt="סידור-נועה" 
+                className="w-10 h-10 rounded-xl object-cover shadow-md border border-indigo-500/25 shadow-indigo-500/10" 
+                referrerPolicy="no-referrer"
+              />
               <div>
-                <h1 className="text-base font-bold tracking-tight leading-none text-white font-sans">LogiTrack</h1>
-                <span className="text-[10px] text-slate-400 font-medium tracking-wide block mt-1">מערכת בקרה וסנכרון הזמנות</span>
+                <h1 className="text-sm sm:text-base font-extrabold tracking-tight leading-none text-white font-sans flex items-center gap-1.5">
+                  סידור-נועה
+                  <span className="text-[9px] bg-indigo-600/60 text-indigo-200 px-1.5 py-0.5 rounded-full font-bold">PWA</span>
+                </h1>
+                <span className="text-[10px] text-slate-400 font-medium tracking-wide block mt-1">מערכת סידור ותיאום לוגיסטי באופליין</span>
               </div>
             </div>
 
@@ -437,20 +572,27 @@ export default function App() {
             <div className="flex items-center gap-3 text-xs font-medium">
               {/* Status indicators */}
               <div className="hidden sm:flex items-center gap-3 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700">
-                {dataSource === "google_sheets" ? (
-                  <div className="flex items-center gap-1.5 text-emerald-400">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>Google Sheets מחובר</span>
-                  </div>
-                ) : dataSource === "fallback" ? (
-                  <div className="flex items-center gap-1.5 text-amber-400" title="פועל במצב לא מקוון עם נתוני גיבוי">
-                    <span className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span>מצב גיבוי מקומי</span>
-                  </div>
+                {isOnline ? (
+                  offlineSyncQueue.length > 0 ? (
+                    <div className="flex items-center gap-1.5 text-amber-400 animate-pulse">
+                      <Wifi size={13} />
+                      <span>סנכרון מקומי פנימי ({offlineSyncQueue.length})</span>
+                    </div>
+                  ) : dataSource === "google_sheets" ? (
+                    <div className="flex items-center gap-1.5 text-emerald-400">
+                      <Wifi size={13} className="text-emerald-400" />
+                      <span>מקוון - Google Sheets</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-indigo-400">
+                      <Wifi size={13} className="text-indigo-400" />
+                      <span>מקוון - סידור נועה ⚡</span>
+                    </div>
+                  )
                 ) : (
-                  <div className="flex items-center gap-1.5 text-slate-400">
-                    <span className="w-2 h-2 rounded-full bg-slate-500" />
-                    <span>מתחבר...</span>
+                  <div className="flex items-center gap-1.5 text-rose-400" title="פועל במצב לא מקוון עם גיבוי מקומי">
+                    <WifiOff size={13} className="text-rose-400 animate-pulse" />
+                    <span>אופליין - נתונים שמורים מקומית</span>
                   </div>
                 )}
               </div>

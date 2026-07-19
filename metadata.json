@@ -1,6 +1,6 @@
 {
-  "name": "Logistics Dashboard",
-  "description": "דשבורד לוגיסטי מודרני בעברית מלאה לניהול וניתוח הזמנות ומשלוחים בזמן אמת",
-  "requestFramePermissions": [],
+  "name": "סידור-נועה",
+  "description": "מערכת מתקדמת לתיאום, סידור וניהול לוגיסטי חכם בזמן אמת - מותאמת להתקנה על מובייל, עבודה באופליין מלא, סנכרון נתונים מקומי וצלילי התראה מותאמים.",
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
