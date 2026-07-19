@@ -19,6 +19,66 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<"google_sheets" | "fallback" | null>(null);
 
+  // Lifted filter states for OrderTable and KPI click bindings
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedWarehouse, setSelectedWarehouse] = useState("all");
+  const [selectedSyncStatus, setSelectedSyncStatus] = useState("all");
+  const [selectedWaStatus, setSelectedWaStatus] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [showDelayedOnly, setShowDelayedOnly] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [activeKpiFilter, setActiveKpiFilter] = useState<string | null>(null);
+
+  const handleKpiCardClick = (cardId: string) => {
+    // Reset all filters first to have a clean state, then apply the specific one
+    setSearchTerm("");
+    setSelectedWarehouse("all");
+    setSelectedSyncStatus("all");
+    setSelectedWaStatus("all");
+    setStartDate("");
+    setEndDate("");
+    setShowDelayedOnly(false);
+    setCurrentPage(1);
+
+    if (cardId === "total-orders") {
+      setActiveKpiFilter("total-orders");
+    } else if (cardId === "synced-orders") {
+      setSelectedSyncStatus("synced");
+      setActiveKpiFilter("synced-orders");
+    } else if (cardId === "pending-orders") {
+      setSelectedSyncStatus("pending");
+      setActiveKpiFilter("pending-orders");
+    } else if (cardId === "delayed-orders") {
+      setShowDelayedOnly(true);
+      setActiveKpiFilter("delayed-orders");
+    } else if (cardId === "top-city") {
+      if (stats.topCity && stats.topCity !== "אין נתונים" && stats.topCity !== "לא ידוע") {
+        setSearchTerm(stats.topCity);
+      }
+      setActiveKpiFilter("top-city");
+    } else if (cardId === "active-warehouses") {
+      setActiveKpiFilter("active-warehouses");
+      // Let's scroll to the table and focus on the warehouse select
+      setTimeout(() => {
+        const warehouseSelect = document.getElementById("warehouse-select") as HTMLSelectElement | null;
+        if (warehouseSelect) {
+          warehouseSelect.focus();
+          warehouseSelect.classList.add("ring-2", "ring-indigo-500", "scale-[1.03]");
+          setTimeout(() => {
+            warehouseSelect.classList.remove("ring-2", "ring-indigo-500", "scale-[1.03]");
+          }, 1500);
+        }
+      }, 300);
+    }
+
+    // Scroll to the order table smoothly
+    const tableSection = document.getElementById("order-table-section");
+    if (tableSection) {
+      tableSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   // Global Dark Mode state (initialized from local storage or system preference)
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem("logitrack_theme");
@@ -763,7 +823,13 @@ export default function App() {
             />
 
             {/* 1. Key Performance Indicators (KPIs) */}
-            <KPICards stats={stats} prevStats={prevStats} darkMode={darkMode} />
+            <KPICards 
+              stats={stats} 
+              prevStats={prevStats} 
+              darkMode={darkMode} 
+              onCardClick={handleKpiCardClick}
+              activeCardId={activeKpiFilter}
+            />
 
             {/* 2. Visual Graphs (Recharts) */}
             <ChartsSection orders={orders} darkMode={darkMode} />
@@ -780,6 +846,23 @@ export default function App() {
               isLoading={isLoading}
               darkMode={darkMode}
               onDeleteOrder={deleteOrder}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              selectedWarehouse={selectedWarehouse}
+              setSelectedWarehouse={setSelectedWarehouse}
+              selectedSyncStatus={selectedSyncStatus}
+              setSelectedSyncStatus={setSelectedSyncStatus}
+              selectedWaStatus={selectedWaStatus}
+              setSelectedWaStatus={setSelectedWaStatus}
+              startDate={startDate}
+              setStartDate={setStartDate}
+              endDate={endDate}
+              setEndDate={setEndDate}
+              showDelayedOnly={showDelayedOnly}
+              setShowDelayedOnly={setShowDelayedOnly}
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
+              onClearKpiFilter={() => setActiveKpiFilter(null)}
             />
           </>
         )}

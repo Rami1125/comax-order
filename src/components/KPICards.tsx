@@ -5,9 +5,11 @@ interface KPICardsProps {
   stats: DashboardStats;
   prevStats?: DashboardStats | null;
   darkMode?: boolean;
+  onCardClick?: (cardId: string) => void;
+  activeCardId?: string | null;
 }
 
-export default function KPICards({ stats, prevStats = null, darkMode = false }: KPICardsProps) {
+export default function KPICards({ stats, prevStats = null, darkMode = false, onCardClick, activeCardId = null }: KPICardsProps) {
   const cards = [
     {
       id: "total-orders",
@@ -104,24 +106,35 @@ export default function KPICards({ stats, prevStats = null, darkMode = false }: 
     <div id="kpi-section" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 w-full">
       {cards.map((card) => {
         const IconComponent = card.icon;
+        const isActive = activeCardId === card.id;
+        
+        let borderClass = card.borderColor;
+        if (isActive) {
+          borderClass = darkMode 
+            ? "ring-2 ring-indigo-500 border-transparent shadow-lg shadow-indigo-500/10" 
+            : "ring-2 ring-indigo-600 border-transparent shadow-lg shadow-indigo-600/10";
+        }
+
         return (
-          <div
+          <button
             key={card.id}
             id={`kpi-card-${card.id}`}
-            className={`border rounded-2xl p-5 shadow-xs hover:shadow-md transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between ${
+            type="button"
+            onClick={() => onCardClick?.(card.id)}
+            className={`w-full text-right border rounded-2xl p-5 shadow-xs hover:shadow-md transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between cursor-pointer active:scale-98 select-none focus:outline-hidden ${borderClass} ${
               darkMode 
-                ? "bg-[#111827]/80 backdrop-blur-md border-slate-800/80 text-white shadow-slate-950/20" 
-                : "glass-panel border-slate-100 text-slate-800 bg-white"
+                ? isActive ? "bg-indigo-950/40" : "bg-[#111827]/80 backdrop-blur-md border-slate-800/80 text-white shadow-slate-950/20 hover:bg-slate-900/60" 
+                : isActive ? "bg-indigo-50/50" : "glass-panel border-slate-100 text-slate-800 bg-white hover:bg-slate-50/70"
             }`}
           >
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 w-full">
               <span className={`text-xs font-semibold ${darkMode ? "text-slate-450" : "text-gray-500"}`}>{card.title}</span>
               <div className={`p-2 rounded-lg bg-gradient-to-br ${card.gradient}`}>
                 <IconComponent size={16} className="stroke-[2.5px]" />
               </div>
             </div>
             
-            <div>
+            <div className="w-full">
               <div className="flex items-baseline gap-2 mb-1 justify-start">
                 <span className={`text-2xl font-bold tracking-tight font-mono ${
                   darkMode ? "text-slate-100" : "text-slate-800"
@@ -155,7 +168,7 @@ export default function KPICards({ stats, prevStats = null, darkMode = false }: 
               </div>
               <p className={`text-[10px] font-normal leading-normal ${darkMode ? "text-slate-450" : "text-gray-400"}`}>{card.subtitle}</p>
             </div>
-          </div>
+          </button>
         );
       })}
     </div>

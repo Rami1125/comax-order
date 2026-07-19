@@ -11,21 +11,53 @@ interface OrderTableProps {
   isLoading: boolean;
   darkMode?: boolean;
   onDeleteOrder?: (orderId: string | number) => void;
+
+  // Lifted filter states
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
+  selectedWarehouse: string;
+  setSelectedWarehouse: (wh: string) => void;
+  selectedSyncStatus: string;
+  setSelectedSyncStatus: (status: string) => void;
+  selectedWaStatus: string;
+  setSelectedWaStatus: (status: string) => void;
+  startDate: string;
+  setStartDate: (date: string) => void;
+  endDate: string;
+  setEndDate: (date: string) => void;
+  showDelayedOnly: boolean;
+  setShowDelayedOnly: (val: boolean) => void;
+  currentPage: number;
+  setCurrentPage: (page: number | ((prev: number) => number)) => void;
+  onClearKpiFilter?: () => void;
 }
 
-export default function OrderTable({ orders, onSelectOrder, onViewOnMap, onRefresh, isLoading, darkMode = false, onDeleteOrder }: OrderTableProps) {
-  // Search state
-  const [searchTerm, setSearchTerm] = useState("");
-  
-  // Filter states
-  const [selectedWarehouse, setSelectedWarehouse] = useState("all");
-  const [selectedSyncStatus, setSelectedSyncStatus] = useState("all");
-  const [selectedWaStatus, setSelectedWaStatus] = useState("all");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
+export default function OrderTable({ 
+  orders, 
+  onSelectOrder, 
+  onViewOnMap, 
+  onRefresh, 
+  isLoading, 
+  darkMode = false, 
+  onDeleteOrder,
+  searchTerm,
+  setSearchTerm,
+  selectedWarehouse,
+  setSelectedWarehouse,
+  selectedSyncStatus,
+  setSelectedSyncStatus,
+  selectedWaStatus,
+  setSelectedWaStatus,
+  startDate,
+  setStartDate,
+  endDate,
+  setEndDate,
+  showDelayedOnly,
+  setShowDelayedOnly,
+  currentPage,
+  setCurrentPage,
+  onClearKpiFilter
+}: OrderTableProps) {
   const itemsPerPage = 8;
 
   // Extract unique filters from actual data
@@ -83,6 +115,8 @@ export default function OrderTable({ orders, onSelectOrder, onViewOnMap, onRefre
     setSelectedWaStatus("all");
     setStartDate("");
     setEndDate("");
+    setShowDelayedOnly(false);
+    if (onClearKpiFilter) onClearKpiFilter();
     setCurrentPage(1);
   };
 
@@ -137,9 +171,12 @@ export default function OrderTable({ orders, onSelectOrder, onViewOnMap, onRefre
         }
       }
 
-      return matchesSearch && matchesWh && matchesSync && matchesWa && matchesDate;
+      // Delayed Filter from KPI Card
+      const matchesDelayed = !showDelayedOnly || isOrderDelayed(order);
+
+      return matchesSearch && matchesWh && matchesSync && matchesWa && matchesDate && matchesDelayed;
     });
-  }, [orders, searchTerm, selectedWarehouse, selectedSyncStatus, selectedWaStatus, startDate, endDate]);
+  }, [orders, searchTerm, selectedWarehouse, selectedSyncStatus, selectedWaStatus, startDate, endDate, showDelayedOnly]);
 
   // Paginated Data
   const paginatedOrders = useMemo(() => {
