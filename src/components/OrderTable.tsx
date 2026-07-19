@@ -361,7 +361,7 @@ export default function OrderTable({ orders, onSelectOrder, onViewOnMap, onRefre
               <th className="px-4 py-3.5">שם לקוח</th>
               <th className="px-4 py-3.5">מחסן</th>
               <th className="px-4 py-3.5">יעד (עיר)</th>
-              <th className="px-4 py-3.5">ערוץ / מודל AI</th>
+              <th className="px-4 py-3.5"> / AI מסקנות נועה</th>
               <th className="px-4 py-3.5 text-center">סטטוס סנכרון</th>
               <th className="px-4 py-3.5 text-left">פעולות</th>
             </tr>

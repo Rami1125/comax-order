@@ -96,6 +96,7 @@ export default function LogisticsMap({
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
   const [deliveryHistory, setDeliveryHistory] = useState<DeliveryHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [mapReadyTrigger, setMapReadyTrigger] = useState(0);
   
   // Mobile UI/UX States
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
@@ -103,6 +104,7 @@ export default function LogisticsMap({
 
   const mapRef = useRef<any>(null);
   const markersGroupRef = useRef<any>(null);
+  const prevPointsKeyRef = useRef("");
   const mapContainerId = fullScreenMode ? "logistics-map-fullscreen-canvas" : "logistics-map-canvas";
 
   // 1. Resolve coordinates and status for all orders
@@ -177,6 +179,7 @@ export default function LogisticsMap({
       script.id = jsId;
       script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
       script.async = true;
+      script.crossOrigin = "anonymous";
       document.head.appendChild(script);
     }
 
@@ -253,13 +256,13 @@ export default function LogisticsMap({
     }
   };
 
-  // 5. Initialize and update the Leaflet map markers
+  // 5a. Initialize the Leaflet map instance (runs on mount, or when darkMode/mapContainerId changes)
   useEffect(() => {
     if (!isLeafletLoaded || !window.L || !document.getElementById(mapContainerId)) return;
 
     const L = window.L;
 
-    // Clean up previous instance only if it exists and container matches
+    // Clean up previous instance only if it exists
     if (mapRef.current) {
       mapRef.current.remove();
       mapRef.current = null;
@@ -294,6 +297,27 @@ export default function LogisticsMap({
     // Create markers layer group
     const markersGroup = L.layerGroup().addTo(map);
     markersGroupRef.current = markersGroup;
+
+    // Trigger state update to notify the markers effect that map is ready
+    setMapReadyTrigger(prev => prev + 1);
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [isLeafletLoaded, darkMode, mapContainerId]);
+
+  // 5b. Update the Leaflet markers (runs whenever filteredPoints, selectedPinId, or mapReadyTrigger changes)
+  useEffect(() => {
+    if (!isLeafletLoaded || !window.L || !mapRef.current || !markersGroupRef.current) return;
+
+    const L = window.L;
+    const markersGroup = markersGroupRef.current;
+
+    // Clear previous markers
+    markersGroup.clearLayers();
 
     // Define custom icon generators
     const getPinIcon = (status: "synced" | "delayed" | "pending", isSelected: boolean) => {
@@ -384,7 +408,8 @@ export default function LogisticsMap({
       
       const isSelected = p.id === selectedPinId;
       const marker = L.marker([p.coords.lat, p.coords.lng], {
-        icon: getPinIcon(p.status, isSelected)
+        icon: getPinIcon(p.status, isSelected),
+        id: p.id
       }).addTo(markersGroup);
 
       // Create a premium custom popup
@@ -436,24 +461,18 @@ export default function LogisticsMap({
       });
     });
 
-    // Auto-fit bounds if we have filtered markers to show
+    // Auto-fit bounds ONLY when filteredPoints count or list changes, preventing zoom resets on pin clicks
     const validCoords = filteredPoints
       .map(p => p.coords)
       .filter((c): c is { lat: number; lng: number } => c !== null);
 
-    // Zoom/Bounds behavior
-    if (validCoords.length > 0) {
+    const pointsKey = filteredPoints.map(p => `${p.id}_${p.status}`).join(",");
+    if (validCoords.length > 0 && prevPointsKeyRef.current !== pointsKey) {
+      prevPointsKeyRef.current = pointsKey;
       const bounds = L.latLngBounds(validCoords.map(c => [c.lat, c.lng]));
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+      mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
     }
-
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-    };
-  }, [isLeafletLoaded, filteredPoints, darkMode, selectedPinId, mapContainerId]);
+  }, [isLeafletLoaded, filteredPoints, selectedPinId, mapReadyTrigger]);
 
   // 6. Handle focus on dynamic initial selected order when map launches
   useEffect(() => {
@@ -464,6 +483,7 @@ export default function LogisticsMap({
     if (foundPoint && foundPoint.coords) {
       const timer = setTimeout(() => {
         zoomToPoint(foundPoint.coords.lat, foundPoint.coords.lng, foundPoint.id);
+        setSelectedOrderDetails(foundPoint.order);
       }, 500);
       return () => clearTimeout(timer);
     }
