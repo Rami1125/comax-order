@@ -305,16 +305,8 @@ export default function App() {
         }
       } else if (dice < 0.65) {
         // Trigger a new simulated incoming order
-        const names = [
-          "אלקטרה מוצרי צריכה בע\"ם", 
-          "רשת שופרסל קמעונאות", 
-          "סופר-פארם קוסמטיקס", 
-          "מחסני חשמל ודיגיטל", 
-          "טרקלין חשמל צפון", 
-          "פוקס קבוצת אופנה", 
-          "רשת מרכולי יוחננוף"
-        ];
-        const cities = ["תל אביב", "חיפה", "באר שבע", "פתח תקווה", "ראשון לציון", "אשדוד", "נתניה"];
+
+        const cities = ["תל אביב", "חיפה", "רעננה", "פתח תקווה", "הרצליה", "כפר סבא", "הוד השרון"];
         const warehouses = ["מחסן מרכז", "מחסן צפון", "מחסן דרום (שפלה)"];
         
         const randomName = names[Math.floor(Math.random() * names.length)];
