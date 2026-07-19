@@ -128,6 +128,7 @@ function ToastItem({ toast, onClose, onActionClick, darkMode }: ToastItemProps) 
           initial={{ width: "100%" }}
           animate={{ width: "0%" }}
           transition={{ duration: duration / 1000, ease: "linear" }}
+          onAnimationComplete={() => onClose(id)}
           className={`h-full ${progressColor}`}
         />
       </div>

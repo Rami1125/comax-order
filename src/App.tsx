@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Order, DashboardStats } from "./types";
 import { calculateStats, getDelayHours } from "./utils";
 import { playNotificationSound } from "./utils/sound";
@@ -42,6 +42,12 @@ export default function App() {
 
   // Toast Notification System state
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Ref to always access the latest orders list in interval simulation without restarts
+  const ordersRef = useRef<Order[]>(orders);
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
 
   // Full Screen layout state
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -196,7 +202,33 @@ export default function App() {
     }
   };
 
+  // Save notified events in memory/localStorage to prevent duplicate toast alerts
+  const [notifiedKeys, setNotifiedKeys] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("sidur_noa_notified_events");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const addToast = (toast: Omit<Toast, "id">) => {
+    // Generate unique fingerprint based on title, message and orderId
+    const fingerprint = `${toast.title}_${toast.message}_${toast.orderId || ""}`;
+    
+    // Prevent duplicate toast alerts by checking memory
+    if (notifiedKeys.includes(fingerprint)) {
+      console.log("Prevented duplicate notification:", fingerprint);
+      return;
+    }
+
+    // Save in memory state and localStorage
+    setNotifiedKeys((prev) => {
+      const updated = [...prev, fingerprint];
+      localStorage.setItem("sidur_noa_notified_events", JSON.stringify(updated));
+      return updated;
+    });
+
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { ...toast, id }]);
 
@@ -266,126 +298,26 @@ export default function App() {
     };
   }, []);
 
-  // Simulating real-time order entries & critical status updates
+  // Track whether we've shown the initial toast
+  const hasShownInitialToast = useRef(false);
+
+  // Show the initial "מערכת ניטור פעילה 📡" toast exactly once when orders are loaded
   useEffect(() => {
-    if (orders.length === 0) return;
-
-    // Trigger initial notification info
-    const initialTimer = setTimeout(() => {
-      addToast({
-        title: "מערכת ניטור פעילה 📡",
-        message: "חיבור ערוצי לוגיסטיקה וסנכרון תקין. מאזין לעדכונים בזמן אמת.",
-        type: "info",
-        duration: 4000
-      });
-    }, 1500);
-
-    const interval = setInterval(() => {
-      const dice = Math.random();
-      
-      if (dice < 0.3) {
-        // Trigger a simulated critical status update on a delayed/existing order
-        const delayedOrders = orders.filter(o => {
-          const sync = o["סטטוס סנכרון"] || "";
-          return !sync.includes("סונכרן") && !sync.includes("✅");
-        });
-        const targetOrder = delayedOrders.length > 0 
-          ? delayedOrders[Math.floor(Math.random() * delayedOrders.length)]
-          : orders[Math.floor(Math.random() * orders.length)];
-        
-        if (targetOrder) {
-          const delayHours = getDelayHours(targetOrder);
-          addToast({
-            title: "עדכון סטטוס קריטי (עיכוב משלוח) ⚠️",
-            message: `הזמנה #${targetOrder["מספר הזמנה"]} עבור הלקוח "${targetOrder["שם לקוח"]}" חרגה מזמן האספקה המאושר (${delayHours > 0 ? delayHours : 48} שעות עיכוב ביחס ליעד).`,
-            type: "error",
-            orderId: targetOrder["מספר הזמנה"],
-            duration: 7500
-          });
-        }
-      } else if (dice < 0.65) {
-        // Trigger a new simulated incoming order
-
-        const cities = ["תל אביב", "חיפה", "רעננה", "פתח תקווה", "הרצליה", "כפר סבא", "הוד השרון"];
-        const warehouses = ["מחסן מרכז", "מחסן צפון", "מחסן דרום (שפלה)"];
-        
-        const randomName = names[Math.floor(Math.random() * names.length)];
-        const randomCity = cities[Math.floor(Math.random() * cities.length)];
-        const randomWh = warehouses[Math.floor(Math.random() * warehouses.length)];
-        const randomId = Math.floor(10000 + Math.random() * 90000);
-
-        const newSimulatedOrder: Order = {
-          "תאריך קליטה": new Date().toISOString(),
-          "מספר הזמנה": randomId,
-          "שם לקוח": randomName,
-          "מחסן": randomWh,
-          "כתובת אספקה": `רחוב: הרצל מספר: ${Math.floor(1 + Math.random() * 150)} ישוב: ${randomCity}`,
-          "פריטים": "[11511] סומסום שק גדול - כמות: " + Math.floor(1 + Math.random() * 5),
-          "סטטוס ווצאפ": "נשלח 💬",
-          "סטטוס סנכרון": "ממתין לסנכרון ⏳",
-          "אימות פקדון בלות": "תקין ✅",
-          "אימות פקדון משטחים": "תקין ✅",
-          "מסקנות נועה AI": "הזמנה חדשה שנקלטה בסימולציית זמן אמת ⚡",
-          "אימות מסלול הובלה": "אושר במערכת",
-          "isSimulated": true
-        };
-
-        // Prepend simulated order to global state
-        setOrders((prev) => {
-          const updated = [newSimulatedOrder, ...prev];
-          localStorage.setItem("sidur_noa_cached_orders", JSON.stringify(updated));
-          return updated;
-        });
-
+    if (orders.length > 0 && !hasShownInitialToast.current) {
+      hasShownInitialToast.current = true;
+      const initialTimer = setTimeout(() => {
         addToast({
-          title: "הזמנה חדשה נקלטה במערכת 📦",
-          message: `הזמנה חדשה #${randomId} התקבלה מלקוח "${randomName}" ליישוב אספקה ${randomCity}. מנופק ממחסן "${randomWh}".`,
-          type: "success",
-          duration: 6500,
-          orderId: randomId
+          title: "מערכת ניטור פעילה 📡",
+          message: "חיבור ערוצי לוגיסטיקה וסנכרון תקין. מאזין לעדכונים בזמן אמת.",
+          type: "info",
+          duration: 4000
         });
-      } else {
-        // Trigger an ERP synchronization success update
-        const unsyncedOrders = orders.filter(o => {
-          const sync = o["סטטוס סנכרון"] || "";
-          return !sync.includes("סונכרן") && !sync.includes("✅");
-        });
-        const targetOrder = unsyncedOrders.length > 0
-          ? unsyncedOrders[Math.floor(Math.random() * unsyncedOrders.length)]
-          : orders[Math.floor(Math.random() * orders.length)];
+      }, 1500);
+      return () => clearTimeout(initialTimer);
+    }
+  }, [orders.length > 0]);
 
-        if (targetOrder) {
-          // Update order status in React state and Cache
-          setOrders((prev) => {
-            const updated = prev.map((o) => {
-              if (o && String(o["מספר הזמנה"]) === String(targetOrder["מספר הזמנה"])) {
-                return {
-                  ...o,
-                  "סטטוס סנכרון": "סונכרן בהצלחה ✅"
-                };
-              }
-              return o;
-            });
-            localStorage.setItem("sidur_noa_cached_orders", JSON.stringify(updated));
-            return updated;
-          });
-
-          addToast({
-            title: "סנכרון ERP הושלם בהצלחה ✅",
-            message: `הזמנה #${targetOrder["מספר הזמנה"]} של "${targetOrder["שם לקוח"]}" סונכרנה בהצלחה למערכות הליבה הארגוניות.`,
-            type: "success",
-            orderId: targetOrder["מספר הזמנה"],
-            duration: 5500
-          });
-        }
-      }
-    }, 25000); // simulation interval (every 25 seconds)
-
-    return () => {
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-    };
-  }, [orders]);
+  // Simulating real-time order entries & critical status updates removed to run exclusively on actual user-triggered changes
 
   useEffect(() => {
     // Set clock
