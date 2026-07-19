@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Order } from "../types";
-import { getCity, getOrderCoordinates, isOrderDelayed, getDelayHours, formatDate } from "../utils";
+import { getCity, getOrderCoordinates, isOrderDelayed, getDelayHours, formatDate, parseItems } from "../utils";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   MapPin, 
   Search, 
@@ -15,7 +16,13 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Navigation,
-  Info
+  Info,
+  History,
+  User,
+  Package,
+  Loader2,
+  Clipboard,
+  ExternalLink
 } from "lucide-react";
 
 interface LogisticsMapProps {
@@ -33,6 +40,45 @@ declare global {
   }
 }
 
+export interface DeliveryHistoryItem {
+  orderId: number;
+  date: string;
+  status: string;
+  items: string;
+  driverName: string;
+}
+
+export const fetchDeliveryHistory = async (address: string): Promise<DeliveryHistoryItem[]> => {
+  await new Promise((resolve) => setTimeout(resolve, 800)); // Simulate database lookup latency
+
+  const hash = address.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const isRepeat = hash % 2 === 0 || address.toLowerCase().includes("הרצל") || address.includes("השרון") || address.includes("תל אביב");
+
+  if (!isRepeat) {
+    return [];
+  }
+
+  const firstOrderId = Math.floor(25100 + (hash % 1200));
+  const secondOrderId = Math.floor(19300 + (hash % 1500));
+
+  return [
+    {
+      orderId: firstOrderId,
+      date: "14/06/2026",
+      status: "נמסר בהצלחה ✅",
+      items: "סומסום שק גדול x2",
+      driverName: "דני אלגרבלי"
+    },
+    {
+      orderId: secondOrderId,
+      date: "02/04/2026",
+      status: "נמסר בהצלחה ✅",
+      items: "משטח עץ אירופאי x5",
+      driverName: "שמעון כהן"
+    }
+  ];
+};
+
 export default function LogisticsMap({ 
   orders, 
   onSelectOrder, 
@@ -45,6 +91,11 @@ export default function LogisticsMap({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "synced" | "pending" | "delayed">("all");
   const [selectedPinId, setSelectedPinId] = useState<number | null>(null);
+  
+  // Interactive Details & History states
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
+  const [deliveryHistory, setDeliveryHistory] = useState<DeliveryHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   
   // Mobile UI/UX States
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
@@ -144,7 +195,7 @@ export default function LogisticsMap({
   const zoomToPoint = (lat: number, lng: number, id: number) => {
     if (!mapRef.current) return;
     setSelectedPinId(id);
-    mapRef.current.setView([lat, lng], 13, { animate: true });
+    mapRef.current.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
     
     // Find and open popup dynamically if markers exist
     if (markersGroupRef.current) {
@@ -155,6 +206,38 @@ export default function LogisticsMap({
       });
     }
   };
+
+  // Effect to load delivery history when an order is selected
+  useEffect(() => {
+    if (!selectedOrderDetails) {
+      setDeliveryHistory([]);
+      return;
+    }
+
+    let isMounted = true;
+    const loadHistory = async () => {
+      setLoadingHistory(true);
+      try {
+        const address = selectedOrderDetails["כתובת אספקה"] || "";
+        const history = await fetchDeliveryHistory(address);
+        if (isMounted) {
+          setDeliveryHistory(history);
+        }
+      } catch (err) {
+        console.error("Error fetching delivery history:", err);
+      } finally {
+        if (isMounted) {
+          setLoadingHistory(false);
+        }
+      }
+    };
+
+    loadHistory();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedOrderDetails]);
 
   // Preset region zoomers
   const zoomToRegion = (region: "all" | "north" | "center" | "south") => {
@@ -264,8 +347,8 @@ export default function LogisticsMap({
 
     // Plot key warehouses with dynamic live statistics computed from current orders
     const warehouses = [
-      { name: "מחסן מרכז", coords: [32.0840, 34.8878] as [number, number], address: "רחוב התלמיד 6, הוד השרון" },
-      { name: "מחסן צפון", coords: [32.7940, 34.9896] as [number, number], address: " רחוב החרש 10, הוד השרון" }
+      { name: "מחסן התחמיד", coords: [32.163712800135734, 34.894489561875886] as [number, number], address: "רחוב התלמיד 6, הוד השרון" },
+      { name: "מחסן החרש", coords: [32.132888758666546, 34.89821806113684] as [number, number], address: " רחוב החרש 10, הוד השרון" }
     ];
 
     warehouses.forEach(wh => {
@@ -343,6 +426,7 @@ export default function LogisticsMap({
       // Set up click handler for the popup button
       marker.on("popupopen", () => {
         setSelectedPinId(p.id);
+        setSelectedOrderDetails(p.order);
         const btn = document.getElementById(`popup-btn-${p.id}`);
         if (btn) {
           btn.onclick = () => {
@@ -473,6 +557,7 @@ export default function LogisticsMap({
                 onClick={() => {
                   if (p.coords) {
                     zoomToPoint(p.coords.lat, p.coords.lng, p.id);
+                    setSelectedOrderDetails(p.order);
                     // On mobile, auto-close the drawer when selecting an order to let them see the map
                     if (window.innerWidth < 1024) {
                       setShowMobileDrawer(false);
@@ -520,6 +605,202 @@ export default function LogisticsMap({
         )}
       </div>
     </div>
+  );
+
+  const handleClosePanel = () => {
+    setSelectedOrderDetails(null);
+    setSelectedPinId(null);
+    if (mapRef.current) {
+      mapRef.current.closePopup();
+    }
+  };
+
+  const renderOrderHistoryPanel = () => (
+    <AnimatePresence>
+      {selectedOrderDetails && (
+        <motion.div
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -50 }}
+          transition={{ type: "spring", stiffness: 200, damping: 25 }}
+          className={`absolute top-4 left-4 z-30 max-h-[82%] w-80 sm:w-[380px] rounded-2xl flex flex-col shadow-2xl overflow-hidden border backdrop-blur-md ${
+            darkMode 
+              ? "bg-slate-900/95 border-slate-800 text-white" 
+              : "bg-white/95 border-slate-200 text-slate-800"
+          }`}
+        >
+          {/* Panel Header */}
+          <div className={`p-4 border-b flex items-center justify-between shrink-0 ${
+            darkMode ? "bg-slate-950/60 border-slate-800" : "bg-slate-50 border-slate-150"
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+                <Clipboard size={16} />
+              </span>
+              <div>
+                <h4 className="font-extrabold text-xs">מזהה הזמנה: #{selectedOrderDetails["מספר הזמנה"]}</h4>
+                <p className="text-[10px] text-slate-400">פרטי הזמנה והיסטוריית מסירה</p>
+              </div>
+            </div>
+            <button 
+              onClick={handleClosePanel}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                darkMode ? "bg-slate-800 hover:bg-slate-700 text-slate-400" : "bg-slate-100 hover:bg-slate-200 text-slate-500"
+              }`}
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Panel Body */}
+          <div className="p-4 overflow-y-auto space-y-4 flex-1 text-right text-xs leading-relaxed custom-scrollbar" dir="rtl">
+            {/* Customer & Destination Block */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  <h5 className="font-black text-sm text-indigo-600 dark:text-indigo-400">{selectedOrderDetails["שם לקוח"]}</h5>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{selectedOrderDetails["כתובת אספקה"] || "לא צוין יעד"}</p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-md font-bold text-[9px] shrink-0 ${
+                  (() => {
+                    const syncStatus = selectedOrderDetails["סטטוס סנכרון"];
+                    const isSynced = syncStatus && typeof syncStatus === "string" && (syncStatus.includes("סונכרן") || syncStatus.includes("✅"));
+                    const isDelayed = isOrderDelayed(selectedOrderDetails);
+                    
+                    if (isSynced) return "bg-emerald-500/10 text-emerald-500";
+                    if (isDelayed) return "bg-red-500/10 text-red-500";
+                    return "bg-amber-500/10 text-amber-500";
+                  })()
+                }`}>
+                  {(() => {
+                    const syncStatus = selectedOrderDetails["סטטוס סנכרון"];
+                    const isSynced = syncStatus && typeof syncStatus === "string" && (syncStatus.includes("סונכרן") || syncStatus.includes("✅"));
+                    const isDelayed = isOrderDelayed(selectedOrderDetails);
+                    
+                    if (isSynced) return "סונכרן ל-ERP ✅";
+                    if (isDelayed) return `עיכוב (${getDelayHours(selectedOrderDetails)} ש') ⚠️`;
+                    return "ממתין לסנכרון ⏳";
+                  })()}
+                </span>
+              </div>
+
+              <div className={`p-3 rounded-xl space-y-1.5 border ${
+                darkMode ? "bg-slate-950/40 border-slate-800/60" : "bg-slate-50/60 border-slate-150"
+              }`}>
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="text-slate-400">תאריך קליטה:</span>
+                  <span className="font-mono font-medium">{formatDate(selectedOrderDetails["תאריך קליטה"])}</span>
+                </div>
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="text-slate-400">מחסן שולח:</span>
+                  <span className="font-medium">{selectedOrderDetails["מחסן"] || "לא צוין"}</span>
+                </div>
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="text-slate-400">אימות מסלול הובלה:</span>
+                  <span className="font-medium">{selectedOrderDetails["אימות מסלול הובלה"] || "טרם בוצע"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Items Block */}
+            <div className="space-y-2">
+              <h6 className="font-extrabold text-[11px] text-slate-400 flex items-center gap-1">
+                <Package size={12} className="text-indigo-400" />
+                <span>תכולת הזמנה:</span>
+              </h6>
+              <div className="space-y-1.5">
+                {parseItems(selectedOrderDetails["פריטים"] || "").map((item: any, i: number) => (
+                  <div key={i} className={`flex justify-between items-center p-2 rounded-lg text-[11px] ${
+                    darkMode ? "bg-slate-950/25 border border-slate-800/40" : "bg-slate-100/40 border border-slate-200/50"
+                  }`}>
+                    <span className="font-bold">{item.name}</span>
+                    <span className={`font-mono font-bold px-2 py-0.5 rounded ${
+                      darkMode ? "bg-indigo-950/80 text-indigo-400" : "bg-indigo-50 text-indigo-600"
+                    }`}>x{item.quantity}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Separator / Divider */}
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-dashed border-slate-200/40 dark:border-slate-800/50"></div>
+              <span className="flex-shrink mx-3 text-[10px] text-slate-400 font-bold flex items-center gap-1">
+                <History size={11} className="text-amber-500" />
+                היסטוריית מסירה לכתובת
+              </span>
+              <div className="flex-grow border-t border-dashed border-slate-200/40 dark:border-slate-800/50"></div>
+            </div>
+
+            {/* Delivery History Block */}
+            <div className="space-y-2.5">
+              {loadingHistory ? (
+                <div className="flex flex-col items-center justify-center py-6 gap-2">
+                  <Loader2 size={18} className="animate-spin text-indigo-500" />
+                  <span className="text-[10px] text-slate-400 font-medium">בודק היסטוריית מסירות...</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {deliveryHistory.length === 0 ? (
+                    <div className={`p-3.5 rounded-xl border border-dashed text-center space-y-1 ${
+                      darkMode ? "bg-indigo-950/10 border-indigo-900/40" : "bg-emerald-50/35 border-emerald-200/40"
+                    }`}>
+                      <div className="font-black text-[11px] text-emerald-500 flex items-center justify-center gap-1">
+                        <span>🆕 יעד הפצה חדש</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-normal">
+                        לא נמצאו מסירות קודמות בכתובת זו. זו הפעם הראשונה שמנווטים ליעד זה במערכת.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] text-slate-400">נמצאו מסירות קודמות:</span>
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 text-[9px] font-black animate-pulse">
+                          🔄 יעד חוזר במערכת
+                        </span>
+                      </div>
+                      <div className="space-y-2 max-h-[160px] overflow-y-auto pr-0.5 custom-scrollbar">
+                        {deliveryHistory.map((hist, hIdx) => (
+                          <div key={hIdx} className={`p-2.5 rounded-xl border text-[11px] space-y-1 ${
+                            darkMode ? "bg-slate-950/60 border-slate-850" : "bg-slate-50/80 border-slate-150"
+                          }`}>
+                            <div className="flex justify-between items-center font-bold">
+                              <span className="text-indigo-600 dark:text-indigo-400">הזמנה #{hist.orderId}</span>
+                              <span className="text-slate-400 font-mono text-[10px]">{hist.date}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] text-slate-400">
+                              <span>תכולה: <strong className="text-slate-700 dark:text-slate-300 font-medium">{hist.items}</strong></span>
+                              <span className="text-emerald-500 font-bold">{hist.status}</span>
+                            </div>
+                            <div className="text-[9px] text-slate-400 pt-0.5 border-t border-slate-100 dark:border-slate-850">
+                              נהג מבצע: <span className="font-bold text-slate-600 dark:text-slate-300">{hist.driverName}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Panel Footer */}
+          <div className={`p-3 border-t flex gap-2 shrink-0 ${
+            darkMode ? "bg-slate-950/40 border-slate-800" : "bg-slate-50 border-slate-150"
+          }`}>
+            <button 
+              onClick={() => onSelectOrder(selectedOrderDetails)}
+              className="flex-1 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white font-bold py-2 px-3 rounded-xl text-center flex items-center justify-center gap-1.5 cursor-pointer transition-all duration-300 text-xs shadow-sm hover:shadow-md"
+            >
+              <span>פתח כרטיס מלא לניהול</span>
+              <ExternalLink size={13} />
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 
   // --- FULL SCREEN PAGE LAYOUT ---
@@ -621,6 +902,9 @@ export default function LogisticsMap({
             ) : (
               <div id={mapContainerId} className="w-full h-full" />
             )}
+
+            {/* RENDER FLOATING DETAIL & HISTORY PANEL */}
+            {renderOrderHistoryPanel()}
 
             {/* FLOATING INSTRUCTIONS / LEGEND */}
             <div className={`absolute bottom-4 right-4 z-20 px-3 py-2 rounded-2xl text-[10px] shadow-lg border backdrop-blur-md select-none transition-all ${
@@ -789,6 +1073,9 @@ export default function LogisticsMap({
           ) : (
             <div id={mapContainerId} className="w-full h-full z-10" />
           )}
+
+          {/* RENDER FLOATING DETAIL & HISTORY PANEL */}
+          {renderOrderHistoryPanel()}
 
           {/* Floating Instructions/Legend */}
           <div className={`absolute bottom-3 right-3 z-20 px-3 py-2 rounded-xl text-[10px] shadow-md border ${
