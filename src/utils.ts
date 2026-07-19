@@ -92,7 +92,7 @@ export function calculateStats(orders: Order[]): DashboardStats {
   
   orders.forEach(order => {
     // Sync check
-    const syncStatus = order["סטטוס סנכרון"] || "";
+    const syncStatus = String(order["סטטוס סנכרון"] || "");
     if (syncStatus.includes("סונכרן") || syncStatus.includes("✅")) {
       syncedOrders++;
     }
@@ -103,18 +103,18 @@ export function calculateStats(orders: Order[]): DashboardStats {
     }
     
     // City calculation
-    const city = getCity(order["כתובת אספקה"]);
+    const city = getCity(String(order["כתובת אספקה"] || ""));
     if (city && city !== "לא ידוע") {
       citiesCount[city] = (citiesCount[city] || 0) + 1;
     }
     
     // Warehouse check
     if (order["מחסן"]) {
-      warehouses.add(order["מחסן"].trim());
+      warehouses.add(String(order["מחסן"]).trim());
     }
     
     // WhatsApp Model stats
-    const waModel = order["סטטוס ווצאפ"] || "לא ידוע";
+    const waModel = String(order["סטטוס ווצאפ"] || "לא ידוע");
     whatsappModelStats[waModel] = (whatsappModelStats[waModel] || 0) + 1;
   });
   
@@ -149,7 +149,8 @@ export function calculateStats(orders: Order[]): DashboardStats {
 export function isOrderDelayed(order: Order): boolean {
   if (!order["תאריך קליטה"]) return false;
   
-  const isSynced = !!(order["סטטוס סנכרון"] && (order["סטטוס סנכרון"].includes("סונכרן") || order["סטטוס סנכרון"].includes("✅")));
+  const syncStatus = order["סטטוס סנכרון"];
+  const isSynced = !!(syncStatus && typeof syncStatus === "string" && (syncStatus.includes("סונכרן") || syncStatus.includes("✅")));
   if (isSynced) return false;
   
   try {

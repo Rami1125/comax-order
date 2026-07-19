@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Order } from "../types";
 import { getCity } from "../utils";
 import {
@@ -13,7 +14,9 @@ import {
   Pie,
   Cell,
   AreaChart,
-  Area
+  Area,
+  LineChart,
+  Line
 } from "recharts";
 import { Map, Warehouse, MessageSquare, TrendingUp, Brain, Sparkles } from "lucide-react";
 
@@ -23,6 +26,63 @@ interface ChartsSectionProps {
 }
 
 export default function ChartsSection({ orders, darkMode = false }: ChartsSectionProps) {
+  // --- Prepare 30 Days Line Chart Data ---
+  const last30DaysData = useMemo(() => {
+    const data = [];
+    let baseDate = new Date();
+    
+    // Anchor to the latest order's date if it exists and is valid, so the chart is never empty in demo/static environments
+    let latestOrderTime = 0;
+    orders.forEach((o) => {
+      const dateStr = o["תאריך קליטה"];
+      if (dateStr) {
+        try {
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime()) && d.getTime() > latestOrderTime) {
+            latestOrderTime = d.getTime();
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    });
+    
+    if (latestOrderTime > 0) {
+      baseDate = new Date(latestOrderTime);
+    }
+    
+    // Map order dates to a format for lookup
+    const orderDateMap: Record<string, number> = {};
+    orders.forEach((o) => {
+      const dateStr = o["תאריך קליטה"];
+      if (dateStr) {
+        try {
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime())) {
+            const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            orderDateMap[dateKey] = (orderDateMap[dateKey] || 0) + 1;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    });
+
+    // Generate last 30 days chronologically
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(baseDate);
+      d.setDate(baseDate.getDate() - i);
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const formattedLabel = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+      data.push({
+        date: formattedLabel,
+        fullDate: d.toLocaleDateString("he-IL", { day: "numeric", month: "short", year: "numeric" }),
+        count: orderDateMap[dateKey] || 0,
+      });
+    }
+    return data;
+  }, [orders]);
+
   // --- Prepare Top Cities Data ---
   const cityCounts: Record<string, number> = {};
   orders.forEach((o) => {
@@ -95,6 +155,68 @@ export default function ChartsSection({ orders, darkMode = false }: ChartsSectio
 
   return (
     <div id="charts-section" className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full mt-6">
+      {/* 30 Days Line Chart (Full Width) */}
+      <div
+        id="thirty-days-chart-panel"
+        className={`lg:col-span-2 rounded-2xl p-5 shadow-xs border transition-colors duration-300 ${
+          darkMode
+            ? "bg-[#111827]/80 backdrop-blur-md border-slate-800/80 text-white shadow-slate-950/20"
+            : "glass-panel border-slate-200/50 bg-white text-slate-800"
+        }`}
+      >
+        <div className={`flex items-center gap-2.5 mb-5 border-b pb-3 ${darkMode ? "border-slate-800/80" : "border-slate-100"}`}>
+          <div className={`p-2 rounded-lg ${darkMode ? "bg-indigo-950/50 text-indigo-400" : "bg-indigo-50 text-indigo-600"}`}>
+            <TrendingUp size={18} />
+          </div>
+          <div>
+            <h3 className={`font-semibold ${darkMode ? "text-slate-100" : "text-slate-800"}`}>מגמת הזמנות יומית - 30 ימים אחרונים</h3>
+            <p className={`text-xs ${darkMode ? "text-slate-400" : "text-gray-400"}`}>ניתוח עומסי עבודה וצפי לוגיסטי</p>
+          </div>
+        </div>
+
+        <div className="h-80 w-full font-mono text-xs">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={last30DaysData} margin={{ top: 15, right: 15, left: -20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#1f2937" : "#f1f5f9"} />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fill: darkMode ? "#94a3b8" : "#64748b", fontSize: 10 }} 
+                axisLine={false} 
+                tickLine={false}
+                interval={1}
+              />
+              <YAxis tick={{ fill: darkMode ? "#94a3b8" : "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{
+                  background: darkMode ? "#1e293b" : "#ffffff",
+                  border: darkMode ? "1px solid #334155" : "1px solid #e2e8f0",
+                  borderRadius: "12px",
+                  color: darkMode ? "#fff" : "#0f172a",
+                  fontSize: "12px",
+                  direction: "rtl",
+                  boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+                }}
+                formatter={(value: any) => [`${value} הזמנות`, "נפח יומי"]}
+                labelFormatter={(label: string, items: any[]) => {
+                  if (items && items[0]) {
+                    return items[0].payload.fullDate;
+                  }
+                  return label;
+                }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="count" 
+                stroke="#6366f1" 
+                strokeWidth={3} 
+                dot={{ r: 3, stroke: "#6366f1", strokeWidth: 2, fill: darkMode ? "#111827" : "#fff" }}
+                activeDot={{ r: 6, stroke: "#4f46e5", strokeWidth: 2, fill: "#818cf8" }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
       {/* 1. Bar Chart: Top Cities */}
       <div
         id="city-chart-panel"

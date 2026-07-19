@@ -6,17 +6,18 @@ import { X, Clipboard, MapPin, Warehouse, MessageSquare, CheckCircle2, ShoppingB
 interface OrderDetailModalProps {
   order: Order | null;
   onClose: () => void;
+  onViewOnMap?: (order: Order) => void;
   darkMode?: boolean;
 }
 
-export default function OrderDetailModal({ order, onClose, darkMode = false }: OrderDetailModalProps) {
+export default function OrderDetailModal({ order, onClose, onViewOnMap, darkMode = false }: OrderDetailModalProps) {
   if (!order) return null;
 
   const parsedProducts = parseItems(order["פריטים"]);
   const totalQty = parsedProducts.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Sync state
-  const isSynced = order["סטטוס סנכרון"] && (order["סטטוס סנכרון"].includes("סונכרן") || order["סטטוס סנכרון"].includes("✅"));
+  const syncStatus = order["סטטוס סנכרון"];
+  const isSynced = syncStatus && typeof syncStatus === "string" && (syncStatus.includes("סונכרן") || syncStatus.includes("✅"));
 
   // Generate WhatsApp Sharing URL
   const whatsappUrl = useMemo(() => {
@@ -273,7 +274,22 @@ export default function OrderDetailModal({ order, onClose, darkMode = false }: O
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center justify-end">
+          <div className="flex flex-col sm:flex-row items-center gap-2 justify-end w-full sm:w-auto">
+            {onViewOnMap && (
+              <button
+                onClick={() => onViewOnMap(order)}
+                className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer border ${
+                  darkMode 
+                    ? "bg-indigo-600 hover:bg-indigo-500 border-indigo-500 text-white shadow-xs hover:shadow-md" 
+                    : "bg-indigo-50 hover:bg-indigo-100 border-indigo-100 text-indigo-700 shadow-2xs hover:shadow-xs"
+                }`}
+                title="צפה בהזמנה זו על גבי מפת הפצה בגודל מלא"
+              >
+                <MapPin size={14} className="stroke-[2.5px]" />
+                <span>צפה על מפה</span>
+              </button>
+            )}
+
             <a
               href={whatsappUrl}
               target="_blank"

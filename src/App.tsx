@@ -8,7 +8,7 @@ import OrderDetailModal from "./components/OrderDetailModal";
 import Notifications from "./components/Notifications";
 import LogisticsMap from "./components/LogisticsMap";
 import ToastContainer, { Toast } from "./components/ToastContainer";
-import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff } from "lucide-react";
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -45,9 +45,99 @@ export default function App() {
   // Full Screen layout state
   const [isFullScreen, setIsFullScreen] = useState(false);
 
+  // Active view layout: "dashboard" or "map"
+  const [activeView, setActiveView] = useState<"dashboard" | "map">("dashboard");
+  // Focused order for map initialization
+  const [mapFocusedOrder, setMapFocusedOrder] = useState<Order | null>(null);
+
+  // Web Notifications permission state
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      return Notification.permission;
+    }
+    return "default";
+  });
+
+  // Sync notification permission status on mount and focus
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      const syncPermission = () => {
+        setNotificationPermission(Notification.permission);
+      };
+      syncPermission();
+      window.addEventListener("focus", syncPermission);
+      return () => window.removeEventListener("focus", syncPermission);
+    }
+  }, []);
+
+  const sendNativeNotification = (title: string, body: string, orderId?: number | string) => {
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+      try {
+        const options: NotificationOptions = {
+          body,
+          icon: "/favicon.ico",
+          dir: "rtl",
+          lang: "he",
+          tag: orderId ? `order-${orderId}` : undefined,
+        };
+        const notification = new Notification(title, options);
+        if (orderId) {
+          notification.onclick = () => {
+            window.focus();
+            const found = orders.find(o => String(o["מספר הזמנה"]) === String(orderId));
+            if (found) {
+              setSelectedOrder(found);
+            }
+          };
+        }
+      } catch (err) {
+        console.error("Failed to send native notification:", err);
+      }
+    }
+  };
+
+  const requestNotificationPermission = () => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      Notification.requestPermission().then((permission) => {
+        setNotificationPermission(permission);
+        if (permission === "granted") {
+          addToast({
+            title: "התראות דפדפן הופעלו בהצלחה! 🔔",
+            message: "כעת תקבל התראות מערכת על עדכוני סטטוס קריטיים גם כאשר הלשונית אינה פעילה.",
+            type: "success",
+            duration: 5000,
+          });
+          // Send a test notification
+          sendNativeNotification("מערכת LogiTrack 📡", "התראות דפדפן פעילות ומסונכרנות.");
+        } else if (permission === "denied") {
+          addToast({
+            title: "התראות דפדפן נחסמו 🔕",
+            message: "כדי לקבל התראות מערכת, יש לאפשר אותן בהגדרות האתר בדפדפן שלך.",
+            type: "error",
+            duration: 5000,
+          });
+        }
+      });
+    } else {
+      addToast({
+        title: "התראות אינן נתמכות ⚠️",
+        message: "הדפדפן שלך אינו תומך ב-Web Notifications API.",
+        type: "error",
+        duration: 5000,
+      });
+    }
+  };
+
   const addToast = (toast: Omit<Toast, "id">) => {
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { ...toast, id }]);
+
+    // Trigger system notification for critical updates or if tab is inactive
+    const isCritical = toast.type === "error" || toast.title.includes("קריטי") || toast.title.includes("חריג") || toast.title.includes("אזהרה") || toast.title.includes("סנכרון ERP");
+    const shouldNotify = isCritical || document.hidden;
+    if (shouldNotify) {
+      sendNativeNotification(toast.title, toast.message, (toast as any).orderId);
+    }
   };
 
   const removeToast = (id: string) => {
@@ -241,6 +331,53 @@ export default function App() {
     fetchOrders();
   }, []);
 
+  // --- FULL SCREEN MAP VIEW INTERCEPTOR ---
+  if (activeView === "map") {
+    return (
+      <div 
+        id="fullscreen-map-wrapper"
+        className={`w-screen h-screen selection:bg-blue-600 selection:text-white ${
+          darkMode ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"
+        }`}
+      >
+        <LogisticsMap
+          orders={orders}
+          onSelectOrder={(order) => {
+            setSelectedOrder(order);
+          }}
+          darkMode={darkMode}
+          fullScreenMode={true}
+          onBackToDashboard={() => {
+            setActiveView("dashboard");
+            setMapFocusedOrder(null);
+          }}
+          initialSelectedOrder={mapFocusedOrder}
+        />
+        
+        {/* Detail modal over the full screen map */}
+        <OrderDetailModal
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+          onViewOnMap={(order) => {
+            setMapFocusedOrder(order);
+          }}
+          darkMode={darkMode}
+        />
+
+        {/* Real-time Toasts in map view */}
+        <ToastContainer
+          toasts={toasts}
+          onClose={removeToast}
+          onActionClick={(orderId) => {
+            const found = orders.find(o => o["מספר הזמנה"] === orderId);
+            if (found) setSelectedOrder(found);
+          }}
+          darkMode={darkMode}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       id="app-root"
@@ -286,6 +423,27 @@ export default function App() {
                   </div>
                 )}
               </div>
+
+              {/* Web Notifications Toggle Button */}
+              <button
+                onClick={requestNotificationPermission}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-100 transition-all duration-300 cursor-pointer flex items-center justify-center shadow-inner"
+                title={
+                  notificationPermission === "granted"
+                    ? "התראות דפדפן פעילות 🔔"
+                    : notificationPermission === "denied"
+                    ? "התראות דפדפן חסומות (לחץ למידע) 🔕"
+                    : "לחץ להפעלת התראות דפדפן לעדכונים קריטיים 🔔"
+                }
+              >
+                {notificationPermission === "granted" ? (
+                  <Bell size={15} className="text-emerald-400 animate-pulse" />
+                ) : notificationPermission === "denied" ? (
+                  <BellOff size={15} className="text-red-400" />
+                ) : (
+                  <Bell size={15} className="text-slate-300 hover:text-blue-400 transition-colors" />
+                )}
+              </button>
 
               {/* Full Screen Mode Toggle Button */}
               <button
@@ -365,6 +523,22 @@ export default function App() {
               )}
               
               <button
+                onClick={() => {
+                  setMapFocusedOrder(null);
+                  setActiveView("map");
+                }}
+                className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all flex items-center gap-2 cursor-pointer ${
+                  darkMode
+                    ? "bg-indigo-600 border-indigo-500 hover:bg-indigo-500 text-white shadow-md"
+                    : "bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100 shadow-xs"
+                }`}
+                title="מעבר לתצוגת מפת משלוחים מלאה"
+              >
+                <Map size={14} className="stroke-[2.5px]" />
+                <span>מפת הפצה ארצית 🗺️</span>
+              </button>
+
+              <button
                 onClick={fetchOrders}
                 disabled={isLoading}
                 className={`px-4 py-2 text-xs font-semibold rounded-xl border transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 ${
@@ -405,17 +579,14 @@ export default function App() {
             {/* 2. Visual Graphs (Recharts) */}
             <ChartsSection orders={orders} darkMode={darkMode} />
 
-            {/* 3. Geographic Overview Map (Leaflet) */}
-            <LogisticsMap
-              orders={orders}
-              onSelectOrder={(order) => setSelectedOrder(order)}
-              darkMode={darkMode}
-            />
-
-            {/* 4. Interactive Data Table (OrderTable) */}
+            {/* 3. Interactive Data Table (OrderTable) */}
             <OrderTable
               orders={orders}
               onSelectOrder={(order) => setSelectedOrder(order)}
+              onViewOnMap={(order) => {
+                setMapFocusedOrder(order);
+                setActiveView("map");
+              }}
               onRefresh={fetchOrders}
               isLoading={isLoading}
               darkMode={darkMode}
@@ -428,6 +599,11 @@ export default function App() {
       <OrderDetailModal
         order={selectedOrder}
         onClose={() => setSelectedOrder(null)}
+        onViewOnMap={(order) => {
+          setSelectedOrder(null);
+          setMapFocusedOrder(order);
+          setActiveView("map");
+        }}
         darkMode={darkMode}
       />
 

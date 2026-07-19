@@ -1,17 +1,18 @@
 import { useState, useMemo, ChangeEvent } from "react";
 import { Order } from "../types";
 import { getCity, formatDate, parseItems, isOrderDelayed, getDelayHours } from "../utils";
-import { Search, Filter, RefreshCw, Eye, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Calendar, AlertTriangle, Clock } from "lucide-react";
+import { Search, Filter, RefreshCw, Eye, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Calendar, AlertTriangle, Clock, MapPin } from "lucide-react";
 
 interface OrderTableProps {
   orders: Order[];
   onSelectOrder: (order: Order) => void;
+  onViewOnMap?: (order: Order) => void;
   onRefresh: () => void;
   isLoading: boolean;
   darkMode?: boolean;
 }
 
-export default function OrderTable({ orders, onSelectOrder, onRefresh, isLoading, darkMode = false }: OrderTableProps) {
+export default function OrderTable({ orders, onSelectOrder, onViewOnMap, onRefresh, isLoading, darkMode = false }: OrderTableProps) {
   // Search state
   const [searchTerm, setSearchTerm] = useState("");
   
@@ -30,7 +31,7 @@ export default function OrderTable({ orders, onSelectOrder, onRefresh, isLoading
   const warehouses = useMemo(() => {
     const set = new Set<string>();
     orders.forEach(o => {
-      if (o["מחסן"]) set.add(o["מחסן"].trim());
+      if (o && o["מחסן"]) set.add(String(o["מחסן"]).trim());
     });
     return Array.from(set);
   }, [orders]);
@@ -38,7 +39,7 @@ export default function OrderTable({ orders, onSelectOrder, onRefresh, isLoading
   const waStatuses = useMemo(() => {
     const set = new Set<string>();
     orders.forEach(o => {
-      if (o["סטטוס ווצאפ"]) set.add(o["סטטוס ווצאפ"].trim());
+      if (o && o["סטטוס ווצאפ"]) set.add(String(o["סטטוס ווצאפ"]).trim());
     });
     return Array.from(set);
   }, [orders]);
@@ -87,22 +88,31 @@ export default function OrderTable({ orders, onSelectOrder, onRefresh, isLoading
   // Filter and Search Logic
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
+      if (!order) return false;
       // Search
-      const searchStr = `${order["מספר הזמנה"]} ${order["שם לקוח"]} ${order["כתובת אספקה"]} ${order["פריטים"] || ""}`.toLowerCase();
+      const orderId = order["מספר הזמנה"] !== undefined && order["מספר הזמנה"] !== null ? String(order["מספר הזמנה"]) : "";
+      const customerName = order["שם לקוח"] ? String(order["שם לקוח"]) : "";
+      const address = order["כתובת אספקה"] ? String(order["כתובת אספקה"]) : "";
+      const items = order["פריטים"] ? String(order["פריטים"]) : "";
+      
+      const searchStr = `${orderId} ${customerName} ${address} ${items}`.toLowerCase();
       const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
 
       // Warehouse
-      const matchesWh = selectedWarehouse === "all" || (order["מחסן"] && order["מחסן"].trim() === selectedWarehouse);
+      const warehouseStr = order["מחסן"] ? String(order["מחסן"]).trim() : "";
+      const matchesWh = selectedWarehouse === "all" || warehouseStr === selectedWarehouse;
 
       // Sync
       let matchesSync = true;
       if (selectedSyncStatus !== "all") {
-        const isSynced = order["סטטוס סנכרון"] && (order["סטטוס סנכרון"].includes("סונכרן") || order["סטטוס סנכרון"].includes("✅"));
+        const syncStatus = order["סטטוס סנכרון"];
+        const isSynced = syncStatus && typeof syncStatus === "string" && (syncStatus.includes("סונכרן") || syncStatus.includes("✅"));
         matchesSync = selectedSyncStatus === "synced" ? !!isSynced : !isSynced;
       }
 
       // WhatsApp Model
-      const matchesWa = selectedWaStatus === "all" || (order["סטטוס ווצאפ"] && order["סטטוס ווצאפ"].trim() === selectedWaStatus);
+      const waStatusStr = order["סטטוס ווצאפ"] ? String(order["סטטוס ווצאפ"]).trim() : "";
+      const matchesWa = selectedWaStatus === "all" || waStatusStr === selectedWaStatus;
 
       // Date Range Filter
       let matchesDate = true;
@@ -496,24 +506,47 @@ export default function OrderTable({ orders, onSelectOrder, onRefresh, isLoading
                     
                     {/* Actions */}
                     <td className="px-4 py-3.5 text-left">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                           onSelectOrder(order);
-                        }}
-                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                          isDelayed
-                            ? darkMode
-                              ? "text-red-400 hover:text-red-200 hover:bg-red-950"
-                              : "text-red-500 hover:text-red-700 hover:bg-red-100"
-                            : darkMode 
-                              ? "text-slate-400 hover:text-indigo-400 hover:bg-slate-900" 
-                              : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
-                        }`}
-                        title="צפה בפרטים"
-                      >
-                        <Eye size={15} />
-                      </button>
+                      <div className="flex items-center gap-1 justify-end">
+                        {onViewOnMap && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onViewOnMap(order);
+                            }}
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                              isDelayed
+                                ? darkMode
+                                  ? "text-red-400 hover:text-red-200 hover:bg-red-950"
+                                  : "text-red-500 hover:text-red-700 hover:bg-red-100"
+                                : darkMode 
+                                  ? "text-emerald-400 hover:text-emerald-200 hover:bg-slate-900" 
+                                  : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            }`}
+                            title="צפה במפת הפצה"
+                          >
+                            <MapPin size={15} />
+                          </button>
+                        )}
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectOrder(order);
+                          }}
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                            isDelayed
+                              ? darkMode
+                                ? "text-red-400 hover:text-red-200 hover:bg-red-950"
+                                : "text-red-500 hover:text-red-700 hover:bg-red-100"
+                              : darkMode 
+                                ? "text-slate-400 hover:text-indigo-400 hover:bg-slate-900" 
+                                : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
+                          }`}
+                          title="צפה בפרטים"
+                        >
+                          <Eye size={15} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
