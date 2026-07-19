@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { Order } from "../types";
-import { parseItems, formatDate } from "../utils";
-import { X, Clipboard, MapPin, Warehouse, MessageSquare, CheckCircle2, ShoppingBag, Sparkles, AlertCircle, TrendingUp, Info, Share2, RefreshCw } from "lucide-react";
+import { parseItems, formatDate, getCity } from "../utils";
+import { useETA } from "../utils/useETA";
+import { X, Clipboard, MapPin, Warehouse, MessageSquare, CheckCircle2, ShoppingBag, Sparkles, AlertCircle, TrendingUp, Info, Share2, RefreshCw, Clock } from "lucide-react";
 
 interface OrderDetailModalProps {
   order: Order | null;
@@ -18,6 +19,14 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
   const totalQty = parsedProducts.reduce((sum, item) => sum + item.quantity, 0);
 
   const syncStatus = order["סטטוס סנכרון"];
+
+  // Calculate internal ETA using custom hook
+  const destinationCity = order["כתובת אספקה"] ? getCity(order["כתובת אספקה"]) : undefined;
+  const { eta, isRush, isDefaultFallback } = useETA(
+    order["מחסן"] || "החרש 10, הוד השרון",
+    destinationCity,
+    order["תאריך קליטה"]
+  );
   const isSynced = syncStatus && typeof syncStatus === "string" && (syncStatus.includes("סונכרן") || syncStatus.includes("✅"));
 
   // Generate WhatsApp Sharing URL
@@ -90,7 +99,7 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
         {/* Content Body */}
         <div className="p-6 space-y-6 overflow-y-auto">
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {/* Customer Details */}
             <div className={`p-4 rounded-xl border flex gap-3 transition-colors duration-300 ${
               darkMode ? "bg-slate-900/30 border-slate-800" : "bg-slate-50/40 border-slate-100"
@@ -118,6 +127,45 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
                 {order["אימות מסלול הובלה"] && (
                   <span className={`text-[11px] sm:text-xs block leading-relaxed ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
                     מסלול: {order["אימות מסלול הובלה"]}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* ETA Estimation Details */}
+            <div className={`p-4 rounded-xl border flex gap-3 transition-colors duration-300 ${
+              darkMode ? "bg-slate-900/30 border-slate-800" : "bg-slate-50/40 border-slate-100"
+            }`}>
+              <div className={`p-2.5 rounded-lg h-fit ${darkMode ? "bg-indigo-950/60 text-indigo-400" : "bg-indigo-50 text-indigo-600"}`}>
+                <Clock size={16} />
+              </div>
+              <div className="space-y-1 w-full">
+                <span className={`text-[10px] sm:text-xs block font-medium ${darkMode ? "text-slate-400" : "text-gray-400"}`}>ETA משוער ללקוח</span>
+                {eta !== null ? (
+                  <div className="space-y-1">
+                    <span className={`font-bold text-xs sm:text-sm block ${darkMode ? "text-indigo-400" : "text-indigo-600"}`}>
+                      צפי הגעה: כ-{eta} דקות
+                    </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {isRush && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                          עומס פקקים 🚨
+                        </span>
+                      )}
+                      {isDefaultFallback ? (
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/10">
+                          ברירת מחדל
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/10">
+                          נתונים היסטוריים
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <span className={`text-xs block font-medium ${darkMode ? "text-slate-500" : "text-gray-400"}`}>
+                    זמן הגעה לא זמין
                   </span>
                 )}
               </div>

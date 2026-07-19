@@ -192,14 +192,16 @@ export default function LogisticsMap({
 
     mapRef.current = map;
 
-    // Choose map tile theme
-    const tileUrl = darkMode
-      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+    // Choose map tile theme using Stadia Maps 'Alidade Smooth' style with Hebrew translations
+    const apiKey = (import.meta as any).env?.VITE_STADIA_MAPS_API_KEY || "";
+    const style = darkMode ? "alidade_smooth_dark" : "alidade_smooth";
+    
+    // We append the secure client-side API key if available, and force the Hebrew language label translation
+    const tileUrl = apiKey
+      ? `https://tiles.stadiamaps.com/tiles/${style}/{z}/{x}/{y}{r}.png?api_key=${apiKey}&language=he`
+      : `https://tiles.stadiamaps.com/tiles/${style}/{z}/{x}/{y}{r}.png?language=he`;
 
-    const attribution = darkMode
-      ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-      : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+    const attribution = '&copy; <a href="https://stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors';
 
     L.tileLayer(tileUrl, {
       attribution,
@@ -262,9 +264,8 @@ export default function LogisticsMap({
 
     // Plot key warehouses with dynamic live statistics computed from current orders
     const warehouses = [
-      { name: "מחסן מרכז", coords: [32.0840, 34.8878] as [number, number], address: "אזור התעשייה חולון, מחוז מרכז" },
-      { name: "מחסן צפון", coords: [32.7940, 34.9896] as [number, number], address: "פארק תעשיות נשר, חיפה והצפון" },
-      { name: "מחסן דרום (שפלה)", coords: [31.8928, 34.8113] as [number, number], address: "אזור תעשייה רג\"מ, רחובות והדרום" }
+      { name: "מחסן מרכז", coords: [32.0840, 34.8878] as [number, number], address: "רחוב התלמיד 6, הוד השרון" },
+      { name: "מחסן צפון", coords: [32.7940, 34.9896] as [number, number], address: " רחוב החרש 10, הוד השרון" }
     ];
 
     warehouses.forEach(wh => {
@@ -639,9 +640,13 @@ export default function LogisticsMap({
                   <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                   <span>עיכוב קריטי (מעל 48 שעות)</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 text-slate-500 font-bold">
                   <div className="w-4 h-4 bg-indigo-600 text-white rounded flex items-center justify-center text-[8px] font-bold">🏠</div>
                   <span>מרכז הפצה / מחסן מנפק</span>
+                </div>
+                <div className="flex items-center gap-1.5 pt-1 border-t border-slate-700/10 dark:border-slate-800/40 mt-1.5 text-[9px] text-slate-400">
+                  <span>🗺️ מפות:</span>
+                  <span className="font-bold text-indigo-500">Stadia Maps {(import.meta as any).env?.VITE_STADIA_MAPS_API_KEY ? "🔑" : "🔓"}</span>
                 </div>
               </div>
             </div>
@@ -803,9 +808,13 @@ export default function LogisticsMap({
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                 <span>עיכוב קריטי (מעל 48 שעות)</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 text-slate-500 font-bold">
                 <div className="w-3.5 h-3.5 bg-indigo-600 text-white rounded flex items-center justify-center text-[8px] font-bold">🏠</div>
                 <span>מרכז הפצה / מחסן מנפק</span>
+              </div>
+              <div className="flex items-center gap-1.5 pt-1 border-t border-slate-700/10 dark:border-slate-800/40 mt-1 text-[9px] text-slate-400">
+                <span>🗺️ מפות:</span>
+                <span className="font-bold text-indigo-500">Stadia Maps {(import.meta as any).env?.VITE_STADIA_MAPS_API_KEY ? "🔑" : "🔓"}</span>
               </div>
             </div>
           </div>
