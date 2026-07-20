@@ -2,7 +2,6 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenAI } from "@google/genai";
 
 let aiClient: GoogleGenAI | null = null;
-
 function getGeminiClient() {
   if (!aiClient) {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -22,7 +21,7 @@ function getGeminiClient() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // הגדרות כותרות CORS
+  // Allow CORS
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,POST,PUT,DELETE");
@@ -74,18 +73,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 - רשימת ההזמנות הפעילות: ${JSON.stringify(context?.orders || [])}
 `;
 
-    // מיפוי היסטוריית הצ'אט עם פולבק בטוח למבנה הטקסט
+    // Map chat history according to @google/genai guidelines
     const contents = history.map((h: any) => ({
       role: h.role === "assistant" || h.role === "model" ? "model" : "user",
-      parts: [{ text: h.text || h.parts?.[0]?.text || "" }]
+      parts: [{ text: h.text }]
     }));
     
-    // הוספת הודעת המשתמש הנוכחית
+    // Append current user message
     contents.push({ role: "user", parts: [{ text: message }] });
 
-    // תיקון שם המודל לגרסה הנתמכת והנכונה
     const response = await ai.models.generateContent({
-      model: "gemini-flash-latest",
+      model: "gemini-3.5-flash",
       contents,
       config: {
         systemInstruction,
@@ -95,9 +93,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let replyText = response.text || "";
     
-    // ניקוי מגן מפני תגיות קוד מרקדאון אם חזרו בטעות
+    // Sanitization: remove any markdown wrapping code blocks if returned
     if (replyText.startsWith("```")) {
+      // Strip starting ```html or ```
       replyText = replyText.replace(/^```(?:html|markdown|text|xml)?\n?/i, "");
+      // Strip ending ```
       replyText = replyText.replace(/\n?```$/, "");
     }
     

@@ -213,3 +213,48 @@ body {
 .dark .noa-response hr {
   border-top-color: #334155;
 }
+
+/* Perfect mobile web app wrapper and smooth inertia scroll */
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #f8fafc;
+  color: #334155;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain; /* Prevents pull-to-refresh on mobile if installed as app */
+}
+
+/* Responsive touch optimization */
+@media (max-width: 640px) {
+  .smooth-scroll-container {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+}
+
+/* Interactive 3D deep-pressed buttons with premium feedback */
+.btn-depth {
+  position: relative;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.btn-depth:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 10px -1px rgba(0, 0, 0, 0.12), 0 3px 6px -2px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.btn-depth:active {
+  transform: translateY(2px) !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.1), inset 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Active gateway navigation options */
+.btn-gateway-active {
+  border-bottom-width: 4px;
+}
+

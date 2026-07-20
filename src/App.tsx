@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Order, DashboardStats } from "./types";
-import { calculateStats, getDelayHours } from "./utils";
+import { calculateStats, getDelayHours, getCity, parseItems } from "./utils";
 import { playNotificationSound } from "./utils/sound";
 import KPICards from "./components/KPICards";
 import ChartsSection from "./components/ChartsSection";
@@ -11,7 +11,8 @@ import Notifications from "./components/Notifications";
 import LogisticsMap from "./components/LogisticsMap";
 import ToastContainer, { Toast } from "./components/ToastContainer";
 import NoaChat from "./components/NoaChat";
-import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff, Trash2, Sparkles, Menu, Calendar, X } from "lucide-react";
+import AutomationModal from "./components/AutomationModal";
+import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff, Trash2, Sparkles, Menu, Calendar, X, Settings } from "lucide-react";
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -33,6 +34,7 @@ export default function App() {
   const [activeKpiFilter, setActiveKpiFilter] = useState<string | null>(null);
   const [isNoaChatOpen, setIsNoaChatOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAutomationOpen, setIsAutomationOpen] = useState(false);
 
   const handleKpiCardClick = (cardId: string) => {
     // Reset all filters first to have a clean state, then apply the specific one
@@ -187,6 +189,40 @@ export default function App() {
       localStorage.removeItem("sidur_noa_offline_queue");
     }
   }, [isOnline, offlineSyncQueue]);
+
+  // Dynamic OneSignal initialization
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const initOneSignal = () => {
+        const OneSignal = (window as any).OneSignal;
+        if (OneSignal) {
+          OneSignal.push(() => {
+            const appId = (import.meta as any).env?.VITE_ONESIGNAL_APP_ID || "10168393-68fb-4f36-b610-d020e24177d0";
+            OneSignal.init({
+              appId: appId,
+              allowLocalhostAsSecureOrigin: true,
+              notifyButton: {
+                enable: false,
+              },
+            }).then(() => {
+              console.log("OneSignal push service initialized successfully.");
+            }).catch((err: any) => {
+              console.warn("OneSignal Web Push warning:", err);
+            });
+          });
+        }
+      };
+
+      const OneSignal = (window as any).OneSignal;
+      if (OneSignal) {
+        initOneSignal();
+      } else {
+        const handleOneSignalLoad = () => initOneSignal();
+        document.addEventListener("onesignalload", handleOneSignalLoad);
+        return () => document.removeEventListener("onesignalload", handleOneSignalLoad);
+      }
+    }
+  }, []);
 
   // Web Notifications permission state
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() => {
@@ -469,6 +505,9 @@ export default function App() {
   };
 
   const updateOrderSyncStatus = (orderId: string | number, newStatus: string) => {
+    // Find matching order first to extract details before the state updates
+    const targetOrder = orders.find(o => o && String(o["מספר הזמנה"]) === String(orderId));
+
     setOrders((prevOrders) => {
       const updated = prevOrders.map((o) => {
         if (o && String(o["מספר הזמנה"]) === String(orderId)) {
@@ -515,6 +554,36 @@ export default function App() {
         type: "success",
         duration: 4000
       });
+
+      // Dispatch to Make.com Webhook trigger!
+      if (targetOrder) {
+        fetch("/api/make/trigger", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId: targetOrder["מספר הזמנה"],
+            newStatus,
+            customerName: targetOrder["שם לקוח"],
+            city: targetOrder["כתובת אספקה"] ? getCity(targetOrder["כתובת אספקה"]) : "לא ידוע",
+            itemsCount: targetOrder["פריטים"] ? parseItems(targetOrder["פריטים"]).length : 0,
+            date: targetOrder["תאריך קליטה"]
+          })
+        })
+        .then(res => res.json())
+        .then(result => {
+          if (result.success) {
+            addToast({
+              title: "סנכרון אוטומציה 🚀",
+              message: result.message || "עדכון הסטטוס נשלח וסונכרן בהצלחה מול שרתי Make.com!",
+              type: "success",
+              duration: 3500
+            });
+          }
+        })
+        .catch(err => {
+          console.warn("Automation background sync error:", err);
+        });
+      }
     }
   };
 
@@ -702,6 +771,15 @@ export default function App() {
                 <Maximize size={15} className="text-slate-300 stroke-[2px]" />
               </button>
 
+              {/* Automation Center Toggle Button */}
+              <button
+                onClick={() => setIsAutomationOpen(true)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-100 transition-all duration-300 cursor-pointer flex items-center justify-center shadow-inner"
+                title="ניהול אוטומציה וחיבורי Make / OneSignal"
+              >
+                <Settings size={15} className="text-indigo-400 stroke-[2.5px] animate-pulse" />
+              </button>
+
               {/* Theme Toggle Button */}
               <button
                 onClick={() => setDarkMode(!darkMode)}
@@ -748,12 +826,12 @@ export default function App() {
 
               {/* Hamburger Button */}
               <button
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-100 cursor-pointer flex items-center justify-center"
-                aria-label="תפריט ניווט צדדי"
-                title="פתח תפריט צד"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-100 cursor-pointer flex items-center justify-center transition-all"
+                aria-label="תפריט ניווט"
+                title="תפריט ניווט"
               >
-                <Menu size={16} />
+                {isMobileMenuOpen ? <X size={16} className="text-rose-400" /> : <Menu size={16} />}
               </button>
             </div>
           </div>
@@ -941,84 +1019,47 @@ export default function App() {
         </footer>
       )}
 
-      {/* 5. Noa AI Chat Drawer and Fullscreen Popup */}
+      {/* 5. Smart Layered Mobile Menu Dropping Downwards */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <>
-            {/* Backdrop */}
+            {/* Dark glass backdrop overlay */}
             <motion.div
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
+              animate={{ opacity: 0.6 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMobileMenuOpen(false)}
-              className="fixed inset-0 bg-slate-950/80 z-50 backdrop-blur-xs"
+              className="fixed inset-0 top-16 bg-slate-950/85 z-40 backdrop-blur-xs"
             />
 
-            {/* Sidebar drawer panel */}
+            {/* Smart layered menu opening downwards */}
             <motion.div
               dir="rtl"
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className={`fixed top-0 right-0 h-screen w-[310px] max-w-[85vw] z-51 shadow-2xl flex flex-col border-l transition-all duration-300 ${
+              initial={{ height: 0, opacity: 0, y: -15 }}
+              animate={{ height: "auto", opacity: 1, y: 0 }}
+              exit={{ height: 0, opacity: 0, y: -15 }}
+              transition={{ type: "spring", damping: 28, stiffness: 240 }}
+              className={`absolute top-16 left-0 right-0 z-45 shadow-2xl border-b overflow-hidden px-5 py-6 flex flex-col transition-all duration-300 ${
                 darkMode 
-                  ? "bg-slate-900 border-slate-800 text-white" 
-                  : "bg-white border-slate-200 text-slate-800"
+                  ? "bg-[#0F172A]/98 border-slate-850 text-white" 
+                  : "bg-white/98 border-slate-200 text-slate-800"
               }`}
             >
-              {/* Header */}
-              <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#0F172A] text-white">
-                <div className="flex items-center gap-2.5">
-                  <img src="/logo.jpg" alt="لוגו" className="w-8 h-8 rounded-lg object-cover" />
+              <div className="space-y-5">
+                {/* Section header */}
+                <div className="flex items-center justify-between border-b border-slate-800/10 pb-3">
                   <div>
-                    <h3 className="font-extrabold text-sm text-white">סידור-נועה</h3>
-                    <p className="text-[9px] text-slate-400">ח. סבן חומרי בניין</p>
+                    <h3 className="font-extrabold text-sm text-indigo-500">שער ניווט מהיר מובייל</h3>
+                    <p className="text-[10px] text-slate-400 font-medium">לחיצה פיזית בעלת עומק לחיבור מערכות</p>
                   </div>
-                </div>
-                <button
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Drawer Content */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-5">
-                {/* System Status Indicators */}
-                <div className={`p-3.5 rounded-xl border ${
-                  darkMode ? "bg-slate-950/40 border-slate-850" : "bg-slate-50 border-slate-100"
-                }`}>
-                  <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-wider">חיבור וסנכרון מערכת</p>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? "bg-emerald-500" : "bg-rose-500 animate-pulse"}`} />
-                    <span className="text-xs font-bold">
-                      {isOnline ? "מחובר ומקוון" : "מצב אופליין פעיל"}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    {isOnline 
-                      ? offlineSyncQueue.length > 0 
-                        ? `ממתין לסנכרון ${offlineSyncQueue.length} עדכונים`
-                        : "כל הנתונים מסונכרנים ל-Google Sheets"
-                      : "עדכונים ישמרו מקומית ויסונכרנו אוטומטית"}
-                  </p>
+                  <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono font-bold tracking-wider">
+                    {currentTime || "00:00:00"}
+                  </span>
                 </div>
 
-                {/* Clock */}
-                <div className={`p-3.5 rounded-xl border text-center ${
-                  darkMode ? "bg-slate-950/40 border-slate-850 text-slate-200" : "bg-slate-50 border-slate-100 text-slate-700"
-                }`}>
-                  <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">שעון מערכת מקומי</p>
-                  <span className="font-mono text-base font-bold tracking-widest text-indigo-500">{currentTime || "00:00:00"}</span>
-                </div>
-
-                {/* Navigation Links */}
-                <div className="space-y-1.5">
-                  <p className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-wider mb-2">אפשרויות ניווט וכלים</p>
-                  
-                  {/* Dashboard / Schedule Option */}
+                {/* 3D Pressed Mobile Gateway Buttons Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Button 1: Orders */}
                   <button
                     onClick={() => {
                       setActiveView("dashboard");
@@ -1026,107 +1067,115 @@ export default function App() {
                       setTimeout(() => {
                         const tbl = document.getElementById("order-table-section");
                         tbl?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      }, 200);
+                      }, 250);
                     }}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl text-right transition-all cursor-pointer font-medium text-xs sm:text-sm ${
+                    className={`btn-depth flex flex-col items-center justify-center p-4 rounded-xl border cursor-pointer text-center group h-24 ${
                       activeView === "dashboard"
-                        ? "bg-indigo-650 text-white shadow-md font-bold"
+                        ? "bg-indigo-600 border-indigo-500 text-white border-b-4 border-b-indigo-800"
                         : darkMode
-                          ? "bg-slate-900 hover:bg-slate-800/80 border border-slate-800 text-slate-200"
-                          : "bg-slate-50 hover:bg-slate-100/80 border border-slate-100 text-slate-700"
+                          ? "bg-slate-900/60 border-slate-800 text-slate-200 border-b-4 border-b-slate-950"
+                          : "bg-slate-50 border-slate-200 text-slate-700 border-b-4 border-b-slate-300"
                     }`}
                   >
-                    <LayoutDashboard size={16} />
-                    <span>לוח בקרה ולוח הזמנות</span>
+                    <LayoutDashboard size={20} className="mb-1.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-extrabold leading-none">לוח הזמנות</span>
                   </button>
 
-                  {/* Map Option */}
+                  {/* Button 2: Map */}
                   <button
                     onClick={() => {
                       setActiveView("map");
                       setIsMobileMenuOpen(false);
                     }}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl text-right transition-all cursor-pointer font-medium text-xs sm:text-sm ${
+                    className={`btn-depth flex flex-col items-center justify-center p-4 rounded-xl border cursor-pointer text-center group h-24 ${
                       activeView === "map"
-                        ? "bg-indigo-650 text-white shadow-md font-bold"
+                        ? "bg-indigo-600 border-indigo-500 text-white border-b-4 border-b-indigo-800"
                         : darkMode
-                          ? "bg-slate-900 hover:bg-slate-800/80 border border-slate-800 text-slate-200"
-                          : "bg-slate-50 hover:bg-slate-100/80 border border-slate-100 text-slate-700"
+                          ? "bg-slate-900/60 border-slate-800 text-slate-200 border-b-4 border-b-slate-950"
+                          : "bg-slate-50 border-slate-200 text-slate-700 border-b-4 border-b-slate-300"
                     }`}
                   >
-                    <Map size={16} />
-                    <span>מפת הפצה ארצית 🗺️</span>
+                    <Map size={20} className="mb-1.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-extrabold leading-none">מפת משלוחים</span>
                   </button>
 
-                  {/* Noa Chat Option */}
+                  {/* Button 3: Noa AI */}
                   <button
                     onClick={() => {
                       setIsMobileMenuOpen(false);
                       setTimeout(() => {
                         setIsNoaChatOpen(true);
-                      }, 250);
+                      }, 200);
                     }}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl text-right transition-all cursor-pointer font-medium text-xs sm:text-sm border ${
-                      darkMode 
-                        ? "bg-slate-900 hover:bg-slate-850 border-slate-800 text-indigo-400" 
-                        : "bg-indigo-50/55 hover:bg-indigo-50 border-indigo-100 text-indigo-700"
+                    className={`btn-depth flex flex-col items-center justify-center p-4 rounded-xl border border-indigo-500/30 cursor-pointer text-center group h-24 ${
+                      darkMode
+                        ? "bg-gradient-to-br from-indigo-950/40 to-slate-900 border-b-4 border-b-slate-950 text-indigo-400"
+                        : "bg-gradient-to-br from-indigo-50/50 to-white border-b-4 border-b-slate-300 text-indigo-700"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <Sparkles size={16} className="animate-pulse text-indigo-500" />
-                      <span className="font-bold">צ'אט עם נועה AI ⚡</span>
-                    </div>
-                    <span className="text-[10px] bg-indigo-600 text-white font-bold px-2 py-0.5 rounded-full">פעיל</span>
+                    <Sparkles size={20} className="mb-1.5 text-indigo-500 animate-pulse group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-extrabold leading-none">צ'אט נועה AI</span>
+                  </button>
+
+                  {/* Button 4: Automation */}
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setTimeout(() => {
+                        setIsAutomationOpen(true);
+                      }, 200);
+                    }}
+                    className={`btn-depth flex flex-col items-center justify-center p-4 rounded-xl border border-violet-500/30 cursor-pointer text-center group h-24 ${
+                      darkMode
+                        ? "bg-gradient-to-br from-violet-950/40 to-slate-900 border-b-4 border-b-slate-950 text-violet-400"
+                        : "bg-gradient-to-br from-violet-50/50 to-white border-b-4 border-b-slate-300 text-violet-700"
+                    }`}
+                  >
+                    <Settings size={20} className="mb-1.5 text-violet-500 group-hover:scale-110 transition-transform animate-spin-slow" />
+                    <span className="text-xs font-extrabold leading-none">אוטומציה ו-Push</span>
                   </button>
                 </div>
 
-                {/* Additional controls */}
-                <div className="space-y-1.5 pt-4 border-t border-slate-800/20">
-                  <p className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-wider mb-2">פעולות מהירות</p>
+                {/* Network & sync details inside drop menu */}
+                <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
+                  darkMode ? "bg-slate-950/50 border-slate-850" : "bg-slate-50 border-slate-150"
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? "bg-emerald-500" : "bg-rose-500 animate-pulse"}`} />
+                    <span className="text-xs font-bold">
+                      {isOnline ? "מחובר ומקוון ל-ERP" : "מצב אופליין פעיל"}
+                    </span>
+                  </div>
                   
-                  {/* Refresh */}
                   <button
                     onClick={() => {
                       fetchOrders();
                       setIsMobileMenuOpen(false);
                     }}
-                    disabled={isLoading}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl text-right transition-all cursor-pointer font-medium text-xs sm:text-sm border ${
-                      darkMode 
-                        ? "bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300" 
-                        : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
-                    }`}
+                    className="text-[11px] font-bold text-indigo-500 flex items-center gap-1 cursor-pointer hover:underline"
                   >
-                    <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-                    <span>רענון נתונים מלא</span>
-                  </button>
-
-                  {/* Dark mode switcher in sidebar */}
-                  <button
-                    onClick={() => setDarkMode(!darkMode)}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl text-right transition-all cursor-pointer font-medium text-xs sm:text-sm border ${
-                      darkMode 
-                        ? "bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-300" 
-                        : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {darkMode ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-indigo-600" />}
-                      <span>{darkMode ? "מעבר למצב בהיר" : "מעבר למצב כהה"}</span>
-                    </div>
+                    <RefreshCw size={11} className={isLoading ? "animate-spin" : ""} />
+                    <span>סנכרון ידני</span>
                   </button>
                 </div>
-              </div>
 
-              {/* Footer */}
-              <div className="p-4 border-t border-slate-800/10 text-center text-[10px] text-slate-500 bg-[#0F172A]/5">
-                <p>© {new Date().getFullYear()} ח. סבן חומרי בניין בע"מ</p>
-                <p className="mt-0.5 font-bold text-indigo-500">נועה AI - פותח עבורכם 😊</p>
+                {/* Footer in drop menu */}
+                <div className="text-center text-[10px] text-slate-500 border-t border-slate-800/20 pt-3">
+                  <p>© {new Date().getFullYear()} סידור נועה - גרסת יהלום סופית 💎</p>
+                </div>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      {/* 5. Automation & OneSignal Push Settings Modal */}
+      <AutomationModal
+        isOpen={isAutomationOpen}
+        onClose={() => setIsAutomationOpen(false)}
+        orders={orders}
+        darkMode={darkMode}
+      />
 
       {/* 5. Noa AI Chat Drawer and Fullscreen Popup */}
       <NoaChat

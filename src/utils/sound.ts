@@ -4,34 +4,16 @@
  */
 
 let audioCtx: AudioContext | null = null;
-let userInteracted = false;
 
-// Defer AudioContext creation until the user has interacted with the page,
-// otherwise browsers block it and log an autoplay warning.
-if (typeof window !== "undefined") {
-  const markInteracted = () => {
-    userInteracted = true;
-    if (audioCtx && audioCtx.state === "suspended") {
-      audioCtx.resume().catch(() => {});
-    }
-    window.removeEventListener("pointerdown", markInteracted);
-    window.removeEventListener("keydown", markInteracted);
-    window.removeEventListener("touchstart", markInteracted);
-  };
-  window.addEventListener("pointerdown", markInteracted, { once: true });
-  window.addEventListener("keydown", markInteracted, { once: true });
-  window.addEventListener("touchstart", markInteracted, { once: true });
-}
-
-function getAudioContext(): AudioContext | null {
-  if (!userInteracted) return null;
+function getAudioContext(): AudioContext {
   if (!audioCtx) {
+    // Standard and vendor prefixed AudioContext
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContextClass) return null;
     audioCtx = new AudioContextClass();
   }
+  // Resume context if it was suspended (browser security policy)
   if (audioCtx.state === "suspended") {
-    audioCtx.resume().catch(() => {});
+    audioCtx.resume();
   }
   return audioCtx;
 }
@@ -41,7 +23,6 @@ export type SoundType = "success" | "error" | "info" | "sync";
 export function playNotificationSound(type: SoundType) {
   try {
     const ctx = getAudioContext();
-    if (!ctx) return;
     const time = ctx.currentTime;
 
     if (type === "success") {
