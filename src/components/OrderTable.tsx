@@ -1,7 +1,8 @@
-import { useState, useMemo, ChangeEvent } from "react";
+import { useState, useMemo, ChangeEvent, TouchEvent } from "react";
+import { motion } from "motion/react";
 import { Order } from "../types";
-import { getCity, formatDate, parseItems, isOrderDelayed, getDelayHours } from "../utils";
-import { Search, Filter, RefreshCw, Eye, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Calendar, AlertTriangle, Clock, MapPin, Trash2 } from "lucide-react";
+import { getCity, formatDate, parseItems, isOrderDelayed, getDelayHours, getWhatsAppUrl } from "../utils";
+import { Search, Filter, RefreshCw, Eye, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Calendar, AlertTriangle, Clock, MapPin, Trash2, X, MessageSquare } from "lucide-react";
 
 interface OrderTableProps {
   orders: Order[];
@@ -11,6 +12,7 @@ interface OrderTableProps {
   isLoading: boolean;
   darkMode?: boolean;
   onDeleteOrder?: (orderId: string | number) => void;
+  onUpdateSyncStatus?: (orderId: string | number, newStatus: string) => void;
 
   // Lifted filter states
   searchTerm: string;
@@ -40,6 +42,7 @@ export default function OrderTable({
   isLoading, 
   darkMode = false, 
   onDeleteOrder,
+  onUpdateSyncStatus,
   searchTerm,
   setSearchTerm,
   selectedWarehouse,
@@ -59,6 +62,56 @@ export default function OrderTable({
   onClearKpiFilter
 }: OrderTableProps) {
   const itemsPerPage = 8;
+
+  // Swipe-to-Action states
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState<number>(0);
+  const [activeSwipeOrderId, setActiveSwipeOrderId] = useState<string | number | null>(null);
+  const [swipedOrderId, setSwipedOrderId] = useState<string | number | null>(null);
+
+  const handleTouchStart = (e: TouchEvent, orderId: string | number) => {
+    if (swipedOrderId && swipedOrderId !== orderId) {
+      setSwipedOrderId(null);
+    }
+    const touch = e.touches[0];
+    setTouchStartX(touch.clientX);
+    setTouchStartY(touch.clientY);
+    setSwipeOffset(0);
+    setActiveSwipeOrderId(orderId);
+  };
+
+  const handleTouchMove = (e: TouchEvent, orderId: string | number) => {
+    if (touchStartX === null || touchStartY === null || activeSwipeOrderId !== orderId) return;
+
+    const touch = e.touches[0];
+    const diffX = touch.clientX - touchStartX;
+    const diffY = touch.clientY - touchStartY;
+
+    // Primarily horizontal movement
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+      if (diffX < 0) {
+        // Dragging left (negative value)
+        setSwipeOffset(Math.max(diffX, -150));
+      } else {
+        setSwipeOffset(0);
+      }
+    }
+  };
+
+  const handleTouchEnd = (orderId: string | number) => {
+    if (activeSwipeOrderId === orderId) {
+      if (swipeOffset < -50) {
+        setSwipedOrderId(orderId);
+      } else {
+        setSwipedOrderId(null);
+      }
+    }
+    setTouchStartX(null);
+    setTouchStartY(null);
+    setSwipeOffset(0);
+    setActiveSwipeOrderId(null);
+  };
 
   // Extract unique filters from actual data
   const warehouses = useMemo(() => {
@@ -238,8 +291,16 @@ export default function OrderTable({
       <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4 mb-5 ${
         darkMode ? "border-slate-800/80" : "border-slate-100"
       }`}>
-        <div>
-          <h3 className={`font-semibold text-lg ${darkMode ? "text-slate-100" : "text-slate-800"}`}>רשימת הזמנות מלאה</h3>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <h3 className={`font-semibold text-lg ${darkMode ? "text-slate-100" : "text-slate-850"}`}>רשימת הזמנות מלאה</h3>
+            <span className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              ⚡ Ctrl+K לחיפוש מהיר
+            </span>
+            <span className="inline-flex lg:hidden items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 animate-pulse">
+              📱 גרירה שמאלה לפעולות מהירות
+            </span>
+          </div>
           <p className={`text-xs ${darkMode ? "text-slate-400" : "text-gray-400"}`}>ניהול, סינון ואיתור מהיר של הזמנות פעילות</p>
         </div>
         
@@ -436,10 +497,108 @@ export default function OrderTable({
                     ? "border-slate-900/40 hover:bg-slate-900/30 text-slate-300" 
                     : "border-slate-50 hover:bg-slate-50/70 text-slate-700";
 
+                // Render Swipe-to-Action panel if this row is currently swiped
+                if (swipedOrderId === order["מספר הזמנה"]) {
+                  return (
+                    <tr 
+                      key={`${order["מספר הזמנה"]}-${idx}-swipe`}
+                      className={`border-b transition-all duration-300 ${
+                        darkMode ? "border-slate-800 bg-slate-900/90" : "border-indigo-100 bg-indigo-50/60"
+                      }`}
+                    >
+                      <td colSpan={8} className="p-0">
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          transition={{ type: "spring", stiffness: 350, damping: 28 }}
+                          className="flex flex-wrap items-center justify-between px-4 py-3 gap-3 min-h-[58px]"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center justify-center p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500 font-mono text-[11px] font-semibold">
+                              #{order["מספר הזמנה"]}
+                            </span>
+                            <span className={`text-xs font-semibold ${darkMode ? "text-slate-200" : "text-slate-800"}`}>
+                              פעולות מהירות עבור {order["שם לקוח"]}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {/* Details Button */}
+                            <button
+                              onClick={() => {
+                                onSelectOrder(order);
+                                setSwipedOrderId(null);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                darkMode 
+                                  ? "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700" 
+                                  : "bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/80 shadow-xs"
+                              }`}
+                            >
+                              <Eye size={13} />
+                              <span>פרטי הזמנה</span>
+                            </button>
+
+                            {/* WhatsApp Button */}
+                            <a
+                              href={getWhatsAppUrl(order)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => setSwipedOrderId(null)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                            >
+                              <MessageSquare size={13} />
+                              <span>וואטסאפ</span>
+                            </a>
+
+                            {/* Update status button */}
+                            {onUpdateSyncStatus && (
+                              <button
+                                onClick={() => {
+                                  onUpdateSyncStatus(order["מספר הזמנה"], "סונכרן בהצלחה ✅");
+                                  setSwipedOrderId(null);
+                                }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                              >
+                                <CheckCircle2 size={13} />
+                                <span>סנכרן ל-ERP ✅</span>
+                              </button>
+                            )}
+
+                            {/* Close/Cancel Button */}
+                            <button
+                              onClick={() => setSwipedOrderId(null)}
+                              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                                darkMode
+                                  ? "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                                  : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                              }`}
+                              title="סגור פעולות"
+                            >
+                              <X size={13} className="text-rose-500" />
+                            </button>
+                          </div>
+                        </motion.div>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                // Normal row styling
+                const isCurrentActiveSwipe = activeSwipeOrderId === order["מספר הזמנה"];
+                const inlineStyle = isCurrentActiveSwipe
+                  ? { transform: `translateX(${swipeOffset}px)`, transition: "none" }
+                  : { transition: "transform 0.25s ease-out" };
+
                 return (
                   <tr
                     key={`${order["מספר הזמנה"]}-${idx}`}
                     onClick={() => onSelectOrder(order)}
+                    onTouchStart={(e) => handleTouchStart(e, order["מספר הזמנה"])}
+                    onTouchMove={(e) => handleTouchMove(e, order["מספר הזמנה"])}
+                    onTouchEnd={() => handleTouchEnd(order["מספר הזמנה"])}
+                    style={inlineStyle}
                     className={`transition-all cursor-pointer group border-b ${rowBgClass}`}
                   >
                     {/* Order ID */}

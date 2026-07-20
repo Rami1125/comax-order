@@ -12,7 +12,7 @@ import LogisticsMap from "./components/LogisticsMap";
 import ToastContainer, { Toast } from "./components/ToastContainer";
 import NoaChat from "./components/NoaChat";
 import AutomationModal from "./components/AutomationModal";
-import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff, Trash2, Sparkles, Menu, Calendar, X, Settings } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff, Trash2, Sparkles, Menu, Calendar, X, Settings, Keyboard } from "lucide-react";
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -35,6 +35,7 @@ export default function App() {
   const [isNoaChatOpen, setIsNoaChatOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAutomationOpen, setIsAutomationOpen] = useState(false);
+  const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
 
   const handleKpiCardClick = (cardId: string) => {
     // Reset all filters first to have a clean state, then apply the specific one
@@ -168,6 +169,78 @@ export default function App() {
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Listen to global keyboard shortcuts for desktop efficiency
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for modifier keys (Ctrl on Windows/Linux, Cmd on macOS)
+      const isMac = typeof navigator !== "undefined" && navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+      const modifier = isMac ? e.metaKey : e.ctrlKey;
+
+      if (modifier) {
+        const key = e.key.toLowerCase();
+        if (key === "k") {
+          e.preventDefault();
+          // Ensure we are viewing the main dashboard list to see the search input
+          setActiveView("dashboard");
+          
+          // Wait slightly for layout swap before focusing
+          setTimeout(() => {
+            const searchInput = document.getElementById("search-input");
+            if (searchInput) {
+              searchInput.focus();
+              searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+              
+              addToast({
+                title: "חיפוש מהיר ממוקד 🔍",
+                message: "ניתן להקליד כעת לסינון הזמנות.",
+                type: "info",
+                duration: 2000
+              });
+            }
+          }, 120);
+        } else if (key === "m") {
+          e.preventDefault();
+          setActiveView((prev) => {
+            const next = prev === "map" ? "dashboard" : "map";
+            addToast({
+              title: next === "map" ? "מפת הפצה 🗺️" : "לוח בקרה 📊",
+              message: `מעבר לתצוגת ${next === "map" ? "מפת הפצה ארצית" : "לוח הבקרה הלוגיסטי"}`,
+              type: "info",
+              duration: 2000
+            });
+            return next;
+          });
+        } else if (key === "comma" || e.key === ",") {
+          e.preventDefault();
+          setIsAutomationOpen((prev) => !prev);
+          addToast({
+            title: "מרכז אוטומציה ⚙️",
+            message: "טעינת הגדרות חיבור ERP ו-Make.com",
+            type: "info",
+            duration: 2000
+          });
+        } else if (key === "h" || e.key === "/") {
+          e.preventDefault();
+          setIsNoaChatOpen((prev) => !prev);
+        } else if (key === "f") {
+          e.preventDefault();
+          setIsFullScreen((prev) => !prev);
+        }
+      } else {
+        // Pressing '?' (Shift + /) shows the shortcuts modal (if not typing in inputs)
+        if (e.key === "?" && e.target instanceof HTMLElement && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+          e.preventDefault();
+          setIsShortcutsHelpOpen(true);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
@@ -771,6 +844,15 @@ export default function App() {
                 <Maximize size={15} className="text-slate-300 stroke-[2px]" />
               </button>
 
+              {/* Keyboard Shortcuts Trigger Button */}
+              <button
+                onClick={() => setIsShortcutsHelpOpen(true)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-100 transition-all duration-300 cursor-pointer flex items-center justify-center shadow-inner"
+                title="הצג קיצורי מקלדת מהירים (או הקש '?')"
+              >
+                <Keyboard size={15} className="text-slate-300 stroke-[2px]" />
+              </button>
+
               {/* Automation Center Toggle Button */}
               <button
                 onClick={() => setIsAutomationOpen(true)}
@@ -974,6 +1056,7 @@ export default function App() {
               isLoading={isLoading}
               darkMode={darkMode}
               onDeleteOrder={deleteOrder}
+              onUpdateSyncStatus={updateOrderSyncStatus}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               selectedWarehouse={selectedWarehouse}
@@ -1186,6 +1269,150 @@ export default function App() {
         onClose={() => setIsNoaChatOpen(false)}
         onOpen={() => setIsNoaChatOpen(true)}
       />
+
+      {/* Keyboard Shortcuts Legend Modal */}
+      <AnimatePresence>
+        {isShortcutsHelpOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsShortcutsHelpOpen(false)}
+              className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs cursor-pointer"
+            />
+
+            {/* Modal Content container */}
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                transition={{ type: "spring", stiffness: 380, damping: 26 }}
+                className={`w-full max-w-lg rounded-2xl p-6 shadow-2xl pointer-events-auto border transition-colors duration-300 ${
+                  darkMode
+                    ? "bg-[#111827] border-slate-800 text-white"
+                    : "bg-white border-slate-200 text-slate-850"
+                }`}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800/20 mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
+                      <Keyboard size={18} />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-sm sm:text-base">מקשי קיצור למנהלי מערכת</h3>
+                      <p className={`text-xs ${darkMode ? "text-slate-400" : "text-gray-400"}`}>
+                        האצת מהירות העבודה בלוח הבקרה וההפצה
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsShortcutsHelpOpen(false)}
+                    className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                      darkMode
+                        ? "bg-slate-900 border-slate-800 text-slate-400 hover:text-white"
+                        : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"
+                    }`}
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+
+                {/* Grid of Shortcuts */}
+                <div className="space-y-3.5 my-5" dir="rtl">
+                  {/* Shortcut 1 */}
+                  <div className="flex items-center justify-between py-2 border-b border-dashed border-slate-800/10">
+                    <span className="text-xs sm:text-sm font-semibold">מיקוד בחיפוש הזמנות מהיר</span>
+                    <div className="flex items-center gap-1 font-mono">
+                      <kbd className={`px-2 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>Ctrl</kbd>
+                      <span className="text-xs font-semibold">+</span>
+                      <kbd className={`px-2 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>K</kbd>
+                    </div>
+                  </div>
+
+                  {/* Shortcut 2 */}
+                  <div className="flex items-center justify-between py-2 border-b border-dashed border-slate-800/10">
+                    <span className="text-xs sm:text-sm font-semibold">מעבר תצוגה (מפה 🗺️ / טבלה 📊)</span>
+                    <div className="flex items-center gap-1 font-mono">
+                      <kbd className={`px-2 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>Ctrl</kbd>
+                      <span className="text-xs font-semibold">+</span>
+                      <kbd className={`px-2 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>M</kbd>
+                    </div>
+                  </div>
+
+                  {/* Shortcut 3 */}
+                  <div className="flex items-center justify-between py-2 border-b border-dashed border-slate-800/10">
+                    <span className="text-xs sm:text-sm font-semibold">פתח/סגור מרכז אוטומציה ⚙️</span>
+                    <div className="flex items-center gap-1 font-mono">
+                      <kbd className={`px-2 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>Ctrl</kbd>
+                      <span className="text-xs font-semibold">+</span>
+                      <kbd className={`px-2.5 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>,</kbd>
+                    </div>
+                  </div>
+
+                  {/* Shortcut 4 */}
+                  <div className="flex items-center justify-between py-2 border-b border-dashed border-slate-800/10">
+                    <span className="text-xs sm:text-sm font-semibold">פתח/סגור צ'אט עזרה נועה AI ⚡</span>
+                    <div className="flex items-center gap-1 font-mono">
+                      <kbd className={`px-2 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>Ctrl</kbd>
+                      <span className="text-xs font-semibold">+</span>
+                      <kbd className={`px-2 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>H</kbd>
+                    </div>
+                  </div>
+
+                  {/* Shortcut 5 */}
+                  <div className="flex items-center justify-between py-2 border-b border-dashed border-slate-800/10">
+                    <span className="text-xs sm:text-sm font-semibold">מעבר למצב מסך מלא (Fullscreen)</span>
+                    <div className="flex items-center gap-1 font-mono">
+                      <kbd className={`px-2 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>Ctrl</kbd>
+                      <span className="text-xs font-semibold">+</span>
+                      <kbd className={`px-2 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>F</kbd>
+                    </div>
+                  </div>
+
+                  {/* Shortcut 6 */}
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-xs sm:text-sm font-semibold">הצג מדריך קיצורים זה</span>
+                    <kbd className={`px-2.5 py-1 text-[11px] rounded border shadow-xs font-mono ${
+                      darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                    }`}>?</kbd>
+                  </div>
+                </div>
+
+                {/* Tip Footer */}
+                <div className={`p-3 rounded-xl text-center text-xs font-medium border ${
+                  darkMode ? "bg-indigo-950/30 border-indigo-900/35 text-indigo-300" : "bg-indigo-50/70 border-indigo-100 text-indigo-700"
+                }`}>
+                  💡 טיפ: משתמשי macOS יכולים להשתמש במקש <span className="font-mono">Cmd ⌘</span> במקום במקש <span className="font-mono">Ctrl</span>.
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Floating Real-time Toast Notifications Container */}
       <ToastContainer

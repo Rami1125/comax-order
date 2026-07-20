@@ -301,4 +301,52 @@ export function getOrderCoordinates(order: Order): Coordinates | null {
   return null;
 }
 
+/**
+ * Generates a WhatsApp sharing URL for an order
+ */
+export function getWhatsAppUrl(order: Order): string {
+  if (!order) return "";
+  const orderId = order["מספר הזמנה"];
+  const customer = order["שם לקוח"];
+  const address = order["כתובת אספקה"] || "לא צוין יעד";
+  const warehouse = order["מחסן"] || "לא הוגדר מחסן";
+  
+  let dateStr = "לא ידוע";
+  if (order["תאריך קליטה"]) {
+    try {
+      const d = new Date(order["תאריך קליטה"]);
+      if (!isNaN(d.getTime())) {
+        dateStr = d.toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", year: "numeric" });
+      }
+    } catch (e) {
+      // fallback
+    }
+  }
+  
+  const syncStatusVal = order["סטטוס סנכרון"];
+  const isSynced = syncStatusVal && typeof syncStatusVal === "string" && (syncStatusVal.includes("סונכרן") || syncStatusVal.includes("✅"));
+  const syncText = isSynced ? "סונכרן למערכת ERP ✅" : "ממתין לסנכרון ⏳";
+  
+  const parsedProducts = parseItems(order["פריטים"]);
+  const itemsText = parsedProducts.length > 0 
+    ? parsedProducts.map(p => `• ${p.name} (${p.quantity} יח')`).join("\n")
+    : "אין פירוט פריטים";
+
+  const aiInsights = order["מסקנות נועה AI"] 
+    ? `\n✨ *מסקנות נועה AI:*\n${order["מסקנות נועה AI"]}` 
+    : "";
+
+  const message = `שלום, להלן פרטי הזמנה מספר *#${orderId}* מתוך מערכת *LogiTrack*:\n\n` +
+    `👤 *לקוח:* ${customer}\n` +
+    `📍 *כתובת אספקה:* ${address}\n` +
+    `🏠 *מחסן מנפק:* ${warehouse}\n` +
+    `📅 *תאריך קליטה:* ${dateStr}\n` +
+    `🔄 *סטטוס סנכרון:* ${syncText}\n\n` +
+    `📦 *פירוט פריטים:* \n${itemsText}` +
+    `${aiInsights}\n\n` +
+    `נשלח דרך לוח הבקרה הלוגיסטי LogiTrack.`;
+
+  return `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+}
+
 
