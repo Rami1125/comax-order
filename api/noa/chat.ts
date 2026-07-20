@@ -93,14 +93,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     });
 
-    let replyText = response.text || "";
-    
+    let replyText: string;
+    try {
+      replyText = typeof response.text === "string" ? response.text : "";
+    } catch {
+      replyText = "";
+    }
+    if (!replyText) {
+      const parts = (response as any)?.candidates?.[0]?.content?.parts || [];
+      replyText = parts.map((p: any) => p?.text || "").join("") || "";
+    }
+
     // ניקוי מגן מפני תגיות קוד מרקדאון אם חזרו בטעות
     if (replyText.startsWith("```")) {
       replyText = replyText.replace(/^```(?:html|markdown|text|xml)?\n?/i, "");
       replyText = replyText.replace(/\n?```$/, "");
     }
-    
+
     return res.status(200).json({ success: true, text: replyText.trim() });
   } catch (error: any) {
     console.error("Gemini API error:", error);
