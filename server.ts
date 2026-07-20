@@ -1,9 +1,7 @@
 import express from "express";
 import path from "path";
+import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
-
-const app = express();
-app.use(express.json());
 
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient() {
@@ -24,7 +22,7 @@ function getGeminiClient() {
   return aiClient;
 }
 
-// Fallback logistics data in Hebrew
+// Fallback logistics data in Hebrew with the correct Order schema fields matching the Google Sheet API structure
 const fallbackOrders = [
   {
     "תאריך קליטה": "2026-07-15T08:30:00.000Z",
@@ -55,7 +53,7 @@ const fallbackOrders = [
     "אימות מסלול הובלה": "טרם בוצע"
   },
   {
-    "תאריך קליטה": "2026-07-12T14:20:00.000Z",
+    "תאריך קליטה": "2026-07-12T14:20:00.000Z", // Delayed over 48 hours
     "מספר הזמנה": 1003,
     "שם לקוח": "משה כהן",
     "מחסן": "מחסן דרום (שפלה)",
@@ -127,7 +125,7 @@ const fallbackOrders = [
   {
     "תאריך קליטה": "2026-07-16T17:20:00.000Z",
     "מספר הזמנה": 1008,
-    "ש = לקוח": "טלי מזור",
+    "שם לקוח": "טלי מזור",
     "מחסן": "מחסן צפון",
     "כתובת אספקה": "רחוב: הרצל מספר: 104 ישוב: נתניה",
     "פריטים": "[11511] סומסום שק גדול - כמות: 4",
@@ -154,52 +152,61 @@ const fallbackOrders = [
   }
 ];
 
-// API Route to fetch from Google Sheets
-app.get("/api/orders", async (req, res) => {
-  const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbyKxsXx-mZ-XRcYTLKVp_BrGo5Vic7YvvI5lVpnzTd5_hmTGwMQc6QD-f2j9azlLar0Gg/exec";
-  
-  try {
-    console.log("Fetching orders from Google Sheets API...");
-    const response = await fetch(GOOGLE_SHEET_URL);
-    if (!response.ok) {
-      throw new Error(`Google Sheets responded with status: ${response.status}`);
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  app.use(express.json());
+
+  // API Route to fetch from Google Sheets and return unified format
+  app.get("/api/orders", async (req, res) => {
+    const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbyKxsXx-mZ-XRcYTLKVp_BrGo5Vic7YvvI5lVpnzTd5_hmTGwMQc6QD-f2j9azlLar0Gg/exec";
+    
+    try {
+      console.log("Fetching orders from Google Sheets API...");
+      const response = await fetch(GOOGLE_SHEET_URL);
+      if (!response.ok) {
+        throw new Error(`Google Sheets responded with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log("Successfully fetched Google Sheets data. Sample item:", data && Array.isArray(data) ? data[0] : typeof data);
+      
+      // Send the data back
+      res.json({
+        success: true,
+        source: "google_sheets",
+        data: data
+      });
+    } catch (error: any) {
+      console.error("Error fetching from Google Sheets. Using high-quality fallback data.", error.message);
+      res.json({
+        success: false,
+        source: "fallback",
+        data: fallbackOrders,
+        error: error.message
+      });
     }
-    
-    const data = await response.json();
-    res.json({
-      success: true,
-      source: "google_sheets",
-      data: data
-    });
-  } catch (error: any) {
-    console.error("Error fetching from Google Sheets. Using high-quality fallback data.", error.message);
-    res.json({
-      success: false,
-      source: "fallback",
-      data: fallbackOrders,
-      error: error.message
-    });
-  }
-});
+  });
 
-// POST endpoint for chatting with Noa AI
-app.post("/api/noa/chat", async (req, res) => {
-  const { message, history = [], context = {} } = req.body;
-  
-  if (!message) {
-    return res.status(400).json({ success: false, error: "message is required" });
-  }
-
-  try {
-    const ai = getGeminiClient();
+  // POST endpoint for chatting with Noa AI
+  app.post("/api/noa/chat", async (req, res) => {
+    const { message, history = [], context = {} } = req.body;
     
-    const systemInstruction = `
+    if (!message) {
+      return res.status(400).json({ success: false, error: "message is required" });
+    }
+
+    try {
+      const ai = getGeminiClient();
+      
+      const systemInstruction = `
 אתה "נועה AI" (Noa AI), עוזרת לוגיסטית חדה ומדויקת להפליא עבור מערכת Comax Order / SabanOS (וחברת ח. סבן חומרי בניין 1994 בע"מ).
 
 התנהגות ליבה (Core Behavior):
 1. ענה תמיד בעברית נקייה, תמציתית, מקצועית וישירה (RTL - מימין לשמאל).
 2. כאשר המשתמש שואל על הזמנות בעיכוב או הזמנות שחורגות מ-48 שעות אספקה ("חריגה מ-48 שעות אספקה"), סרוק מיד את מערך ההזמנות שסופק בהקשר (orders) למטה.
-3. חשב את ההפרש (delta) בין תאריך קליטת ההזמנה (שדה "תאריך קליטה" או "date" בפורמט ISO) לבין הזמן הנוכחי במערכת שהוא 20 ביולי 2026 (2026-07-20T01:49:44IDT).
+3. חשב את ההפרש (delta) בין תאריך קליטת ההזמנה (שדה "תאריך קליטה" או "date" בפורמט ISO) לבין הזמן הנוכחי במערכת שהוא 19 ביולי 2026 (2026-07-19T15:33:56-07:00).
    זהה כל הזמנה שבה הפרש הזמנים גדול מ-48 שעות (48 hours) ושהאספקה או הטיפול בה טרם הושלמו (למשל, סטטוס סנכרון הוא "ממתין לסנכרון ⏳", או שיש בעיות פקדון/מסלול, או שסטטוס הווצאפ אינו מאושר).
 4. פורמט פלט (Output Format): החזר תמיד מבנה טקסט נקי, קריא ומאורגן היטב בעזרת נקודות תבליט (bullet points) נקיות באמצעות תגיות HTML סמנטיות מותרות (כגון <ul>, <li>, <strong>, <p>).
    אזהרה חמורה: לעולם אל תעטוף את התגובות שלך בתוך בלוקי עיצוב גולמיים של קוד (raw formatting markdown blocks) כגון \`\`\`html או \`\`\`markdown או \`\`\`text או \`\`\` xml. תגובות אלה עלולות להכשיל פארסרים ב-frontend (webhook parsers). החזר קוד HTML נקי וישיר בלבד!
@@ -219,34 +226,43 @@ app.post("/api/noa/chat", async (req, res) => {
 - רשימת ההזמנות הפעילות: ${JSON.stringify(context?.orders || [])}
 `;
 
-    const contents = history.map((h: any) => ({
-      role: h.role === "assistant" || h.role === "model" ? "model" : "user",
-      parts: [{ text: h.text }]
-    }));
-    
-    contents.push({ role: "user", parts: [{ text: message }] });
+      // Map chat history according to @google/genai guidelines
+      const contents = history.map((h: any) => ({
+        role: h.role === "assistant" || h.role === "model" ? "model" : "user",
+        parts: [{ text: h.text }]
+      }));
+      
+      // Append current user message
+      contents.push({ role: "user", parts: [{ text: message }] });
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        }
+      });
+
+      let replyText = response.text || "";
+      
+      // Sanitization: remove any markdown wrapping code blocks if returned
+      if (replyText.startsWith("```")) {
+        // Strip starting ```html or ```
+        replyText = replyText.replace(/^```(?:html|markdown|text|xml)?\n?/i, "");
+        // Strip ending ```
+        replyText = replyText.replace(/\n?```$/, "");
       }
-    });
+      
+      res.json({ success: true, text: replyText.trim() });
+    } catch (error: any) {
+      console.error("Gemini API error:", error);
+      res.status(500).json({ success: false, error: error.message || "שגיאה בתקשורת עם שרת ה-AI" });
+    }
+  });
 
-    res.json({ success: true, text: response.text || "" });
-  } catch (error: any) {
-    console.error("Gemini API error:", error);
-    res.status(500).json({ success: false, error: error.message || "שגיאה בתקשורת עם שרת ה-AI" });
-  }
-});
-
-// האזנה מקומית או התקנת Middleware של Vite לפיתוח מקומי בלבד
-async function setupEnvironment() {
-  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
-    // Dynamic import מונע מ-Vite להיטען ולייצר overhead או קריסה בשרתי Vercel
-    const { createServer: createViteServer } = await import("vite");
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -260,16 +276,9 @@ async function setupEnvironment() {
     });
   }
 
-  // הפעלת האזנה רק בסביבת פיתוח מקומית ולא ב-Vercel Serverless
-  if (!process.env.VERCEL) {
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running locally on http://localhost:${PORT}`);
-    });
-  }
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
 }
 
-setupEnvironment();
-
-// ייצוא האפליקציה לטובת המנוע של Vercel
-export default app;
+startServer();

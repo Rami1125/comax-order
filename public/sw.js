@@ -38,10 +38,9 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
   // Skip caching API requests so they can be handled by client-side local sync mechanisms
-  if (event.request.url.includes("/api/")) return;
-
-  // Guard: Ignore non-HTTP/HTTPS requests (like chrome-extension://) to prevent Cache.put errors
-  if (!event.request.url.startsWith("http://") && !event.request.url.startsWith("https://")) return;
+  if (event.request.url.includes("/api/")) {
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
