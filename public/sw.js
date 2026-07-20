@@ -34,49 +34,48 @@ self.addEventListener("activate", (event) => {
 
 // Fetch event: Serve from cache, fallback to network and update cache dynamically
 self.addEventListener("fetch", (event) => {
-  // Only cache GET requests
-  if (event.request.method !== "GET") return;
+  const request = event.request;
+
+  // Only handle GET requests
+  if (request.method !== "GET") return;
+
+  // Only handle http/https requests; skip chrome-extension://, data:, blob:, etc.
+  const url = new URL(request.url);
+  if (url.protocol !== "http:" && url.protocol !== "https:") return;
 
   // Skip caching API requests so they can be handled by client-side local sync mechanisms
-  if (event.request.url.includes("/api/")) {
-    return;
-  }
+  if (url.pathname.includes("/api/")) return;
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Return cached, but fetch in the background to update cache (stale-while-revalidate)
-        fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, networkResponse);
+    caches.match(request).then((cachedResponse) => {
+      const fetchPromise = fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === "basic") {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseToCache).catch(() => {
+                /* ignore cache put errors for unsupported schemes */
               });
-            }
-          })
-          .catch(() => {
-            /* ignore background fetch errors if offline */
-          });
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => null);
+
+      if (cachedResponse) {
+        // Stale-while-revalidate: return cached, update in background
+        fetchPromise.catch(() => {});
         return cachedResponse;
       }
 
-      return fetch(event.request)
-        .then((networkResponse) => {
-          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== "basic") {
-            return networkResponse;
-          }
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-          return networkResponse;
-        })
-        .catch(() => {
-          // If both network and cache fail (e.g. navigation request), return cached index.html
-          if (event.request.mode === "navigate") {
-            return caches.match("/index.html");
-          }
-        });
+      return fetchPromise.then((networkResponse) => {
+        if (networkResponse) return networkResponse;
+        // If both network and cache fail (e.g. navigation request), return cached index.html
+        if (request.mode === "navigate") {
+          return caches.match("/index.html");
+        }
+        return new Response("", { status: 504, statusText: "Gateway Timeout" });
+      });
     })
   );
 });

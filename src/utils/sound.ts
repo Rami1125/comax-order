@@ -5,10 +5,10 @@
 
 let audioCtx: AudioContext | null = null;
 
-function getAudioContext(): AudioContext {
+function getAudioContext(): AudioContext | null {
   if (!audioCtx) {
-    // Standard and vendor prefixed AudioContext
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return null;
     audioCtx = new AudioContextClass();
   }
   // Resume context if it was suspended (browser security policy)
@@ -23,6 +23,7 @@ export type SoundType = "success" | "error" | "info" | "sync";
 export function playNotificationSound(type: SoundType) {
   try {
     const ctx = getAudioContext();
+    if (!ctx) return;
     const time = ctx.currentTime;
 
     if (type === "success") {
