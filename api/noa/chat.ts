@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenAI } from "@google/genai";
 
 let aiClient: GoogleGenAI | null = null;
+
 function getGeminiClient() {
   if (!aiClient) {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -21,7 +22,7 @@ function getGeminiClient() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Allow CORS
+  // הגדרות כותרות CORS
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,POST,PUT,DELETE");
@@ -73,17 +74,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 - רשימת ההזמנות הפעילות: ${JSON.stringify(context?.orders || [])}
 `;
 
-    // Map chat history according to @google/genai guidelines
+    // מיפוי היסטוריית הצ'אט עם פולבק בטוח למבנה הטקסט
     const contents = history.map((h: any) => ({
       role: h.role === "assistant" || h.role === "model" ? "model" : "user",
-      parts: [{ text: h.text }]
+      parts: [{ text: h.text || h.parts?.[0]?.text || "" }]
     }));
     
-    // Append current user message
+    // הוספת הודעת המשתמש הנוכחית
     contents.push({ role: "user", parts: [{ text: message }] });
 
+    // תיקון שם המודל לגרסה הנתמכת והנכונה
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents,
       config: {
         systemInstruction,
@@ -93,11 +95,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let replyText = response.text || "";
     
-    // Sanitization: remove any markdown wrapping code blocks if returned
+    // ניקוי מגן מפני תגיות קוד מרקדאון אם חזרו בטעות
     if (replyText.startsWith("```")) {
-      // Strip starting ```html or ```
       replyText = replyText.replace(/^```(?:html|markdown|text|xml)?\n?/i, "");
-      // Strip ending ```
       replyText = replyText.replace(/\n?```$/, "");
     }
     
