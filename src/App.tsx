@@ -8,6 +8,7 @@ import ChartsSection from "./components/ChartsSection";
 import OrderTable from "./components/OrderTable";
 import OrderDetailModal from "./components/OrderDetailModal";
 import Notifications from "./components/Notifications";
+import DailyInsights from "./components/DailyInsights";
 import LogisticsMap from "./components/LogisticsMap";
 import ToastContainer, { Toast } from "./components/ToastContainer";
 import NoaChat from "./components/NoaChat";
@@ -1025,6 +1026,9 @@ export default function App() {
         ) : (
           /* Dashboard Content Grid */
           <>
+            {/* Daily Insights banner */}
+            <DailyInsights orders={orders} darkMode={darkMode} />
+
             {/* System Alerts / Notifications */}
             <Notifications
               orders={orders}
