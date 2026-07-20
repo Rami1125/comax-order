@@ -85,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // תיקון שם המודל לגרסה הנתמכת והנכונה
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-flash-latest",
       contents,
       config: {
         systemInstruction,
