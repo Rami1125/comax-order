@@ -13,7 +13,7 @@ import LogisticsMap from "./components/LogisticsMap";
 import ToastContainer, { Toast } from "./components/ToastContainer";
 import NoaChat from "./components/NoaChat";
 import AutomationModal from "./components/AutomationModal";
-import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff, Trash2, Sparkles, Menu, Calendar, X, Settings, Keyboard } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Truck, RefreshCw, Layers, Clock, CheckCircle2, ChevronRight, MessageSquare, AlertTriangle, Sun, Moon, Maximize, Minimize, Map, Bell, BellOff, Wifi, WifiOff, Trash2, Sparkles, Menu, Calendar, X, Settings, Keyboard, Target } from "lucide-react";
 
 export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -22,6 +22,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<"google_sheets" | "fallback" | null>(null);
+  const [isFocusMode, setIsFocusMode] = useState(false);
 
   // Lifted filter states for OrderTable and KPI click bindings
   const [searchTerm, setSearchTerm] = useState("");
@@ -229,6 +230,18 @@ export default function App() {
         } else if (key === "f") {
           e.preventDefault();
           setIsFullScreen((prev) => !prev);
+        } else if (key === "b") {
+          e.preventDefault();
+          setIsFocusMode((prev) => {
+            const next = !prev;
+            addToast({
+              title: next ? "מצב מיקוד פעיל 🎯" : "מצב מיקוד כבוי 📊",
+              message: next ? "הסתרת אלמנטים משניים לצורך הגדלת הפרודוקטיביות." : "הצגת לוח בקרה מלא כולל גרפים ומדדים.",
+              type: "info",
+              duration: 2500
+            });
+            return next;
+          });
         }
       } else {
         // Pressing '?' (Shift + /) shows the shortcuts modal (if not typing in inputs)
@@ -845,6 +858,28 @@ export default function App() {
                 <Maximize size={15} className="text-slate-300 stroke-[2px]" />
               </button>
 
+              {/* Focus Mode Toggle Button */}
+              <button
+                onClick={() => {
+                  const next = !isFocusMode;
+                  setIsFocusMode(next);
+                  addToast({
+                    title: next ? "מצב מיקוד פעיל 🎯" : "מצב מיקוד כבוי 📊",
+                    message: next ? "הסתרת אלמנטים משניים לצורך הגדלת הפרודוקטיביות." : "הצגת לוח בקרה מלא כולל גרפים ומדדים.",
+                    type: "info",
+                    duration: 2500
+                  });
+                }}
+                className={`p-2 rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-center shadow-inner ${
+                  isFocusMode 
+                    ? "bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500 ring-2 ring-indigo-500/50" 
+                    : "bg-slate-800 border-slate-700 text-slate-100 hover:bg-slate-750"
+                }`}
+                title={isFocusMode ? "בטל מצב מיקוד (Ctrl+B)" : "הפעל מצב מיקוד (Ctrl+B)"}
+              >
+                <Target size={15} className={`stroke-[2.5px] ${isFocusMode ? "text-white animate-pulse" : "text-slate-300"}`} />
+              </button>
+
               {/* Keyboard Shortcuts Trigger Button */}
               <button
                 onClick={() => setIsShortcutsHelpOpen(true)}
@@ -895,6 +930,28 @@ export default function App() {
                 ) : (
                   <Moon size={15} className="text-slate-300" />
                 )}
+              </button>
+
+              {/* Mobile Focus Mode Toggle Button */}
+              <button
+                onClick={() => {
+                  const next = !isFocusMode;
+                  setIsFocusMode(next);
+                  addToast({
+                    title: next ? "מצב מיקוד פעיל 🎯" : "מצב מיקוד כבוי 📊",
+                    message: next ? "הסתרת אלמנטים משניים לצורך הגדלת הפרודוקטיביות." : "הצגת לוח בקרה מלא כולל גרפים ומדדים.",
+                    type: "info",
+                    duration: 2500
+                  });
+                }}
+                className={`p-2 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
+                  isFocusMode 
+                    ? "bg-indigo-600 border-indigo-500 text-white" 
+                    : "bg-slate-800 border-slate-700 text-slate-100"
+                }`}
+                title={isFocusMode ? "בטל מצב מיקוד" : "הפעל מצב מיקוד"}
+              >
+                <Target size={15} className={isFocusMode ? "text-white animate-pulse" : "text-slate-300"} />
               </button>
 
               {/* Noa AI Chat Header Quick Toggle */}
@@ -1027,26 +1084,61 @@ export default function App() {
           /* Dashboard Content Grid */
           <>
             {/* Daily Insights banner */}
-            <DailyInsights orders={orders} darkMode={darkMode} />
+            {!isFocusMode && <DailyInsights orders={orders} darkMode={darkMode} />}
 
             {/* System Alerts / Notifications */}
-            <Notifications
-              orders={orders}
-              onSelectOrder={(order) => setSelectedOrder(order)}
-              darkMode={darkMode}
-            />
+            {!isFocusMode && (
+              <Notifications
+                orders={orders}
+                onSelectOrder={(order) => setSelectedOrder(order)}
+                darkMode={darkMode}
+              />
+            )}
 
             {/* 1. Key Performance Indicators (KPIs) */}
-            <KPICards 
-              stats={stats} 
-              prevStats={prevStats} 
-              darkMode={darkMode} 
-              onCardClick={handleKpiCardClick}
-              activeCardId={activeKpiFilter}
-            />
+            {!isFocusMode && (
+              <KPICards 
+                stats={stats} 
+                prevStats={prevStats} 
+                darkMode={darkMode} 
+                onCardClick={handleKpiCardClick}
+                activeCardId={activeKpiFilter}
+              />
+            )}
 
             {/* 2. Visual Graphs (Recharts) */}
-            <ChartsSection orders={orders} darkMode={darkMode} />
+            {!isFocusMode && <ChartsSection orders={orders} darkMode={darkMode} />}
+
+            {/* Focus Mode Informational Bar */}
+            {isFocusMode && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-semibold ${
+                  darkMode 
+                    ? "bg-indigo-950/20 border-indigo-900/40 text-indigo-300" 
+                    : "bg-indigo-50 border-indigo-100 text-indigo-800 shadow-xs"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500 shrink-0">
+                    <Target size={16} className="animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm">מצב מיקוד פעיל (Focus Mode) 🎯</h4>
+                    <p className={`text-xs mt-0.5 opacity-80 ${darkMode ? "text-slate-400" : "text-slate-600"}`}>
+                      כל הרכיבים הלא-קריטיים מוסתרים כדי לאפשר התרכזות מקסימלית בניהול תור ההזמנות וההפצה.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsFocusMode(false)}
+                  className="px-4.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold rounded-xl transition-all shadow-md shadow-indigo-600/10 text-xs shrink-0 cursor-pointer"
+                >
+                  הצג לוח בקרה מלא 📊
+                </button>
+              </motion.div>
+            )}
 
             {/* 3. Interactive Data Table (OrderTable) */}
             <OrderTable
@@ -1397,7 +1489,21 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Shortcut 6 */}
+                  {/* Shortcut 6 - Focus Mode */}
+                  <div className="flex items-center justify-between py-2 border-b border-dashed border-slate-800/10">
+                    <span className="text-xs sm:text-sm font-semibold">פתח/סגור מצב מיקוד (Focus Mode) 🎯</span>
+                    <div className="flex items-center gap-1 font-mono">
+                      <kbd className={`px-2 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>Ctrl</kbd>
+                      <span className="text-xs font-semibold">+</span>
+                      <kbd className={`px-2 py-1 text-[11px] rounded border shadow-xs ${
+                        darkMode ? "bg-slate-900 border-slate-800 text-slate-200 shadow-slate-950/50" : "bg-slate-50 border-slate-200 text-slate-700"
+                      }`}>B</kbd>
+                    </div>
+                  </div>
+
+                  {/* Shortcut 7 */}
                   <div className="flex items-center justify-between py-2">
                     <span className="text-xs sm:text-sm font-semibold">הצג מדריך קיצורים זה</span>
                     <kbd className={`px-2.5 py-1 text-[11px] rounded border shadow-xs font-mono ${

@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { Order } from "../types";
 import { parseItems, formatDate, getCity } from "../utils";
-import { useETA } from "../utils/useETA";
+import { resolveOriginId, isRushHour } from "../utils/useETA";
+import { etaConfig } from "../utils/etaConfig";
 import { X, Clipboard, MapPin, Warehouse, MessageSquare, CheckCircle2, ShoppingBag, Sparkles, AlertCircle, TrendingUp, Info, Share2, RefreshCw, Clock } from "lucide-react";
 
 interface OrderDetailModalProps {
@@ -13,30 +14,62 @@ interface OrderDetailModalProps {
 }
 
 export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdateSyncStatus, darkMode = false }: OrderDetailModalProps) {
-  if (!order) return null;
+  const parsedProducts = useMemo(() => {
+    return order ? parseItems(order["פריטים"]) : [];
+  }, [order]);
 
-  const parsedProducts = parseItems(order["פריטים"]);
-  const totalQty = parsedProducts.reduce((sum, item) => sum + item.quantity, 0);
+  const totalQty = useMemo(() => {
+    return parsedProducts.reduce((sum, item) => sum + item.quantity, 0);
+  }, [parsedProducts]);
 
-  const syncStatus = order["סטטוס סנכרון"];
+  const syncStatus = order ? order["סטטוס סנכרון"] : undefined;
 
-  // Calculate internal ETA using custom hook
-  const destinationCity = order["כתובת אספקה"] ? getCity(order["כתובת אספקה"]) : undefined;
-  const { eta, isRush, isDefaultFallback } = useETA(
-    order["מחסן"] || "החרש 10, הוד השרון",
-    destinationCity,
-    order["תאריך קליטה"]
-  );
+  // Calculate internal ETA using direct useMemo to prevent hook resolution issues
+  const destinationCity = order && order["כתובת אספקה"] ? getCity(order["כתובת אספקה"]) : undefined;
+  const origin = order ? (order["מחסן"] || "החרש 10, הוד השרון") : "החרש 10, הוד השרון";
+  const timestamp = order ? order["תאריך קליטה"] : undefined;
+
+  const { eta, isRush, isDefaultFallback } = useMemo(() => {
+    if (!destinationCity || destinationCity === "לא ידוע") {
+      return { eta: null, isRush: false, isDefaultFallback: true };
+    }
+
+    const originId = resolveOriginId(origin);
+    const key = `${originId}_${destinationCity.trim()}`;
+
+    let baseTime = etaConfig.travelTimes[key];
+    const isFound = baseTime !== undefined;
+
+    if (!isFound) {
+      baseTime = etaConfig.defaultTravelTime;
+    }
+
+    const isRushVal = isRushHour(timestamp);
+    let finalTime = baseTime;
+
+    if (isRushVal) {
+      // Add 10% statistical deviation for rush hour
+      finalTime = Math.round(baseTime * 1.1);
+    }
+
+    return {
+      eta: finalTime,
+      isRush: isRushVal,
+      isDefaultFallback: !isFound
+    };
+  }, [origin, destinationCity, timestamp]);
+
   const isSynced = syncStatus && typeof syncStatus === "string" && (syncStatus.includes("סונכרן") || syncStatus.includes("✅"));
 
   // Generate WhatsApp Sharing URL
   const whatsappUrl = useMemo(() => {
+    if (!order) return "";
     const orderId = order["מספר הזמנה"];
     const customer = order["שם לקוח"];
     const address = order["כתובת אספקה"] || "לא צוין יעד";
     const warehouse = order["מחסן"] || "לא הוגדר מחסן";
     const dateStr = formatDate(order["תאריך קליטה"]);
-    const syncStatus = isSynced ? "סונכרן למערכת ERP ✅" : "ממתין לסנכרון ⏳";
+    const syncStatusStr = isSynced ? "סונכרן למערכת ERP ✅" : "ממתין לסנכרון ⏳";
     
     const itemsText = parsedProducts.length > 0 
       ? parsedProducts.map(p => `• ${p.name} (${p.quantity} יח') [קוד: ${p.code || 'ללא'}]`).join("\n")
@@ -51,13 +84,15 @@ export default function OrderDetailModal({ order, onClose, onViewOnMap, onUpdate
       `📍 *כתובת אספקה:* ${address}\n` +
       `🏠 *מחסן מנפק:* ${warehouse}\n` +
       `📅 *תאריך קליטה:* ${dateStr}\n` +
-      `🔄 *סטטוס סנכרון:* ${syncStatus}\n\n` +
+      `🔄 *סטטוס סנכרון:* ${syncStatusStr}\n\n` +
       `📦 *פירוט פריטים:* \n${itemsText}` +
       `${aiInsights}\n\n` +
       `נשלח דרך לוח הבקרה הלוגיסטי LogiTrack.`;
 
     return `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
   }, [order, parsedProducts, isSynced]);
+
+  if (!order) return null;
 
   return (
     <div
