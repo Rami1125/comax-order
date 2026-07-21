@@ -1007,7 +1007,7 @@ export default function App() {
               <h2 className={`text-2xl font-extrabold tracking-tight transition-colors duration-300 ${
                 darkMode ? "text-white" : "text-slate-900"
               }`}>
-                לוח בקרה לוגיסטי
+                לוח סידור
               </h2>
               <p className={`text-sm mt-1 transition-colors duration-300 ${
                 darkMode ? "text-slate-400" : "text-gray-500"

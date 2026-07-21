@@ -170,7 +170,7 @@ export default function DailyInsights({ orders, darkMode = false }: DailyInsight
 
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
               <h3 className={`text-base sm:text-lg font-extrabold ${darkMode ? "text-slate-100" : "text-slate-850"}`}>
-                קצב קליטה יומי: {flowData.dailyCount} הזמנות
+                קצב הזמנות יומי: {flowData.dailyCount} הזמנות
               </h3>
               <div className="flex items-center gap-1.5">
                 <span className={`text-xs ${darkMode ? "text-slate-400" : "text-gray-500"}`}>

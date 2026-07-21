@@ -252,7 +252,9 @@ export default function OrderTable({
 
     filteredOrders.forEach(o => {
       // Synced check
-      const isSynced = o["סטטוס סנכרון"] && (o["סטטוס סנכרון"].includes("סונכרן") || o["סטטוס סנכרון"].includes("✅"));
+      const rawSync = o["סטטוס סנכרון"];
+      const syncStatusStr = rawSync !== undefined && rawSync !== null ? String(rawSync) : "";
+      const isSynced = syncStatusStr.includes("סונכרן") || syncStatusStr.includes("✅");
       if (isSynced) syncedCount++;
 
       // Items qty sum
@@ -490,7 +492,9 @@ export default function OrderTable({
             ) : (
               paginatedOrders.map((order, idx) => {
                 const city = getCity(order["כתובת אספקה"]);
-                const isSynced = order["סטטוס סנכרון"] && (order["סטטוס סנכרון"].includes("סונכרן") || order["סטטוס סנכרון"].includes("✅"));
+                const rawSync = order["סטטוס סנכרון"];
+                const syncStatusStr = rawSync !== undefined && rawSync !== null ? String(rawSync) : "";
+                const isSynced = syncStatusStr.includes("סונכרן") || syncStatusStr.includes("✅");
                 const isDelayed = isOrderDelayed(order);
                 const delayHours = getDelayHours(order);
                 
@@ -704,7 +708,8 @@ export default function OrderTable({
                     {/* אימות פקדון בלות (Column H) */}
                     <td className="px-4 py-3.5 text-xs">
                       {(() => {
-                        const bulotStatus = order["אימות פקדון בלות"] || "";
+                        const rawBulot = order["אימות פקדון בלות"];
+                        const bulotStatus = rawBulot !== undefined && rawBulot !== null ? String(rawBulot) : "";
                         const isBulotOk = bulotStatus.includes("תקין");
                         const isBulotEmpty = !bulotStatus;
                         const bulotBadgeClass = isBulotEmpty
@@ -726,7 +731,8 @@ export default function OrderTable({
                     {/* אימות פקדון משטחים (Column I) */}
                     <td className="px-4 py-3.5 text-xs">
                       {(() => {
-                        const palletsStatus = order["אימות פקדון משטחים"] || "";
+                        const rawPallets = order["אימות פקדון משטחים"];
+                        const palletsStatus = rawPallets !== undefined && rawPallets !== null ? String(rawPallets) : "";
                         const isPalletsOk = palletsStatus.includes("תקין");
                         const isPalletsEmpty = !palletsStatus;
                         const palletsBadgeClass = isPalletsEmpty
