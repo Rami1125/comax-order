@@ -1,8 +1,8 @@
 import { useState, useMemo, ChangeEvent, TouchEvent } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { Order } from "../types";
 import { getCity, formatDate, parseItems, isOrderDelayed, getDelayHours, getWhatsAppUrl } from "../utils";
-import { Search, Filter, RefreshCw, Eye, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Calendar, AlertTriangle, Clock, MapPin, Trash2, X, MessageSquare } from "lucide-react";
+import { Search, Filter, RefreshCw, Eye, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft, Calendar, AlertTriangle, Clock, MapPin, Trash2, X, MessageSquare, Sparkles, Copy, Check, Info } from "lucide-react";
 
 interface OrderTableProps {
   orders: Order[];
@@ -69,6 +69,10 @@ export default function OrderTable({
   const [swipeOffset, setSwipeOffset] = useState<number>(0);
   const [activeSwipeOrderId, setActiveSwipeOrderId] = useState<string | number | null>(null);
   const [swipedOrderId, setSwipedOrderId] = useState<string | number | null>(null);
+
+  // Noa's insights popover state
+  const [popoverText, setPopoverText] = useState<{ orderNumber: number; text: string } | null>(null);
+  const [copiedText, setCopiedText] = useState(false);
 
   const handleTouchStart = (e: TouchEvent, orderId: string | number) => {
     if (swipedOrderId && swipedOrderId !== orderId) {
@@ -459,8 +463,9 @@ export default function OrderTable({
               <th className="px-4 py-3.5">שם לקוח</th>
               <th className="px-4 py-3.5">מחסן</th>
               <th className="px-4 py-3.5">יעד (עיר)</th>
-              <th className="px-4 py-3.5"> / AI מסקנות נועה</th>
-              <th className="px-4 py-3.5 text-center">סטטוס סנכרון</th>
+              <th className="px-4 py-3.5">מסקנות נועה (G)</th>
+              <th className="px-4 py-3.5">אימות פקדון בלות (H)</th>
+              <th className="px-4 py-3.5">אימות פקדון משטחים (I)</th>
               <th className="px-4 py-3.5 text-left">פעולות</th>
             </tr>
           </thead>
@@ -469,7 +474,7 @@ export default function OrderTable({
           }`}>
             {isLoading ? (
               <tr>
-                <td colSpan={8} className="text-center py-10 text-gray-400">
+                <td colSpan={9} className="text-center py-10 text-gray-400">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <RefreshCw className="animate-spin text-indigo-500" size={24} />
                     <span>טוען הזמנות משרת Google Sheets...</span>
@@ -478,7 +483,7 @@ export default function OrderTable({
               </tr>
             ) : paginatedOrders.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-12 text-gray-400 font-medium">
+                <td colSpan={9} className="text-center py-12 text-gray-400 font-medium">
                   לא נמצאו הזמנות התואמות את החיפוש והסינונים שלך.
                 </td>
               </tr>
@@ -506,7 +511,7 @@ export default function OrderTable({
                         darkMode ? "border-slate-800 bg-slate-900/90" : "border-indigo-100 bg-indigo-50/60"
                       }`}
                     >
-                      <td colSpan={8} className="p-0">
+                      <td colSpan={9} className="p-0">
                         <motion.div
                           initial={{ opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -660,45 +665,84 @@ export default function OrderTable({
                       {city}
                     </td>
                     
-                    {/* AI Model */}
+                    {/* Noa's Insights (Column G) */}
                     <td className="px-4 py-3.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border font-mono ${
-                        isDelayed
-                          ? darkMode
-                            ? "bg-red-950/30 text-red-300 border-red-900/40"
-                            : "bg-red-50/50 text-red-700 border-red-150"
-                          : darkMode 
-                            ? "bg-blue-950/40 text-blue-300 border-blue-900/50" 
-                            : "bg-blue-50 text-blue-600 border-blue-100"
-                      }`}>
-                        {order["סטטוס ווצאפ"] || "ללא מודל"}
-                      </span>
+                      {(() => {
+                        const conclusionText = order["Column 4"] || order["מסקנות נועה AI"] || "";
+                        const trimmedText = conclusionText.trim();
+                        const isTextEmpty = !trimmedText;
+                        const textToShow = trimmedText.length > 20 ? trimmedText.slice(0, 20) + "..." : trimmedText;
+                        
+                        return (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPopoverText({ 
+                                orderNumber: order["מספר הזמנה"], 
+                                text: trimmedText || "לא נמצאו מסקנות מאובחנות עבור הזמנה זו." 
+                              });
+                            }}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border text-right justify-start max-w-[170px] hover:scale-[1.02] active:scale-95 ${
+                              isTextEmpty
+                                ? darkMode
+                                  ? "bg-slate-900/30 border-slate-800 text-slate-500"
+                                  : "bg-slate-50 border-slate-100 text-gray-400"
+                                : darkMode
+                                  ? "bg-indigo-950/40 border-indigo-900/50 text-indigo-300 hover:bg-indigo-900/50"
+                                  : "bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100/70"
+                            }`}
+                            style={{ cursor: "pointer" }}
+                            title={trimmedText || "לחץ לצפייה"}
+                          >
+                            <Sparkles size={12} className={isTextEmpty ? "text-slate-400 shrink-0" : "text-indigo-500 shrink-0 animate-pulse"} />
+                            <span className="truncate">{textToShow || "אין מסקנות"}</span>
+                          </button>
+                        );
+                      })()}
                     </td>
                     
-                    {/* Sync Status */}
-                    <td className="px-4 py-3.5 text-center">
-                      <div className="flex justify-center">
-                        {isSynced ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                            <CheckCircle2 size={12} className="stroke-[2.5px]" />
-                            <span>סונכרן</span>
+                    {/* אימות פקדון בלות (Column H) */}
+                    <td className="px-4 py-3.5 text-xs">
+                      {(() => {
+                        const bulotStatus = order["אימות פקדון בלות"] || "";
+                        const isBulotOk = bulotStatus.includes("תקין");
+                        const isBulotEmpty = !bulotStatus;
+                        const bulotBadgeClass = isBulotEmpty
+                          ? darkMode ? "bg-slate-900/40 text-slate-400 border-slate-800" : "bg-slate-50 text-slate-400 border-slate-200/50"
+                          : isBulotOk
+                            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                            : "bg-amber-500/10 text-amber-500 border-amber-500/20";
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium border ${bulotBadgeClass}`}>
+                            {isBulotOk && <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />}
+                            {!isBulotOk && !isBulotEmpty && <AlertTriangle size={12} className="text-amber-500 shrink-0" />}
+                            {isBulotEmpty && <Info size={12} className="text-slate-400 shrink-0" />}
+                            <span>{bulotStatus || "אין נתון"}</span>
                           </span>
-                        ) : isDelayed ? (
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border transition-all duration-300 shadow-2xs ${
-                            darkMode
-                              ? "bg-red-950 text-red-300 border-red-900"
-                              : "bg-red-100 text-red-700 border-red-200"
-                          }`}>
-                            <Clock size={12} className="animate-pulse" />
-                            <span>חריגה ({delayHours} ש') ⏳</span>
+                        );
+                      })()}
+                    </td>
+
+                    {/* אימות פקדון משטחים (Column I) */}
+                    <td className="px-4 py-3.5 text-xs">
+                      {(() => {
+                        const palletsStatus = order["אימות פקדון משטחים"] || "";
+                        const isPalletsOk = palletsStatus.includes("תקין");
+                        const isPalletsEmpty = !palletsStatus;
+                        const palletsBadgeClass = isPalletsEmpty
+                          ? darkMode ? "bg-slate-900/40 text-slate-400 border-slate-800" : "bg-slate-50 text-slate-400 border-slate-200/50"
+                          : isPalletsOk
+                            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                            : "bg-amber-500/10 text-amber-500 border-amber-500/20";
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium border ${palletsBadgeClass}`}>
+                            {isPalletsOk && <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />}
+                            {!isPalletsOk && !isPalletsEmpty && <AlertTriangle size={12} className="text-amber-500 shrink-0" />}
+                            {isPalletsEmpty && <Info size={12} className="text-slate-400 shrink-0" />}
+                            <span>{palletsStatus || "אין נתון"}</span>
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
-                            <AlertCircle size={12} className="stroke-[2.5px]" />
-                            <span>ממתין</span>
-                          </span>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </td>
                     
                     {/* Actions */}
@@ -800,9 +844,8 @@ export default function OrderTable({
                 <td className={`px-4 py-3.5 font-bold ${darkMode ? "text-indigo-400" : "text-indigo-700"}`}>
                   סה"כ פריטים: {totals.totalItemsQuantity}
                 </td>
-                <td className={`px-4 py-3.5 text-center font-bold ${darkMode ? "text-emerald-400" : "text-emerald-700"}`}>
-                  סונכרנו: {totals.syncedCount} / {totals.totalOrders}
-                </td>
+                <td className="px-4 py-3.5 text-slate-400/60">-</td>
+                <td className="px-4 py-3.5 text-slate-400/60">-</td>
                 <td className="px-4 py-3.5"></td>
               </tr>
             </tfoot>
@@ -850,6 +893,110 @@ export default function OrderTable({
           </div>
         </div>
       )}
+
+      {/* Noa's Insights Popup */}
+      <AnimatePresence>
+        {popoverText && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPopoverText(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs"
+            />
+            
+            {/* Content card */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              transition={{ type: "spring", duration: 0.4, bounce: 0.15 }}
+              className={`relative w-full max-w-md overflow-hidden rounded-2xl border p-6 shadow-2xl transition-all text-right direction-rtl ${
+                darkMode
+                  ? "bg-slate-900 border-slate-800 text-slate-100 shadow-slate-950/50"
+                  : "bg-white border-slate-100 text-slate-800 shadow-xl"
+              }`}
+            >
+              {/* Decorative light effect */}
+              <div className="absolute top-0 right-0 h-1.5 w-full bg-gradient-to-l from-indigo-500 via-purple-500 to-pink-500" />
+              
+              {/* Header */}
+              <div className="flex items-start justify-between mb-4 mt-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
+                    <Sparkles size={18} className="animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-base">מסקנות נועה AI (עמודה G)</h4>
+                    <p className={`text-xs ${darkMode ? "text-slate-400" : "text-gray-400"}`}>הזמנה #{popoverText.orderNumber}</p>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => setPopoverText(null)}
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                    darkMode
+                      ? "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                      : "bg-slate-50 border-slate-200/60 text-slate-500 hover:bg-slate-100"
+                  }`}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+              
+              {/* Body */}
+              <div className={`p-4 rounded-xl border leading-relaxed text-sm mb-5 whitespace-pre-wrap ${
+                darkMode ? "bg-slate-950/50 border-slate-800/80 text-slate-200" : "bg-slate-50 border-slate-100 text-slate-700"
+              }`}>
+                {popoverText.text || "אין מסקנות מאובחנות עבור הזמנה זו."}
+              </div>
+              
+              {/* Actions */}
+              <div className="flex items-center gap-3 justify-end">
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(popoverText.text);
+                      setCopiedText(true);
+                      setTimeout(() => setCopiedText(false), 2000);
+                    } catch (err) {
+                      console.error(err);
+                    }
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    copiedText
+                      ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                      : darkMode
+                        ? "bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200"
+                        : "bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700"
+                  }`}
+                >
+                  {copiedText ? (
+                    <>
+                      <Check size={13} className="stroke-[2.5px]" />
+                      <span>הועתק!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={13} />
+                      <span>העתק טקסט</span>
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={() => setPopoverText(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all cursor-pointer shadow-sm shadow-indigo-600/10"
+                >
+                  סגור
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

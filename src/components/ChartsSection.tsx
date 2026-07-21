@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { Order } from "../types";
 import { getCity, parseItems } from "../utils";
 import {
@@ -18,7 +19,27 @@ import {
   LineChart,
   Line
 } from "recharts";
-import { Map, Warehouse, MessageSquare, TrendingUp, Brain, Sparkles } from "lucide-react";
+import { 
+  Map, 
+  Warehouse, 
+  MessageSquare, 
+  TrendingUp, 
+  Brain, 
+  Sparkles, 
+  X, 
+  Search, 
+  Calendar, 
+  MapPin, 
+  User, 
+  ChevronLeft, 
+  Copy, 
+  Check, 
+  Info, 
+  CheckCircle2, 
+  AlertTriangle,
+  Clock,
+  ArrowUpRight
+} from "lucide-react";
 
 interface ChartsSectionProps {
   orders: Order[];
@@ -26,6 +47,49 @@ interface ChartsSectionProps {
 }
 
 export default function ChartsSection({ orders, darkMode = false }: ChartsSectionProps) {
+  const [selectedConclusion, setSelectedConclusion] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [copiedOrderId, setCopiedOrderId] = useState<number | null>(null);
+
+  const stats = useMemo(() => {
+    let analyzedCount = 0;
+    let approvedCount = 0;
+    let warningCount = 0;
+
+    orders.forEach((o) => {
+      const conclusion = o["מסקנות נועה AI"] || "";
+      const trimmed = conclusion.trim();
+      if (trimmed) {
+        analyzedCount++;
+        const lowerConclusion = trimmed.toLowerCase();
+        if (
+          lowerConclusion.includes("תקין") || 
+          lowerConclusion.includes("מאושר") || 
+          lowerConclusion.includes("בדרך") || 
+          lowerConclusion.includes("סונכרן")
+        ) {
+          approvedCount++;
+        } else if (
+          lowerConclusion.includes("חוסר") || 
+          lowerConclusion.includes("בעיה") || 
+          lowerConclusion.includes("עיכוב") || 
+          lowerConclusion.includes("בוטל") ||
+          lowerConclusion.includes("נדרש") ||
+          lowerConclusion.includes("אזהרה")
+        ) {
+          warningCount++;
+        }
+      }
+    });
+
+    return {
+      analyzedCount,
+      approvedCount,
+      warningCount,
+      pendingCount: orders.length - approvedCount - warningCount,
+    };
+  }, [orders]);
+
   // --- Prepare 30 Days Line Chart Data ---
   const last30DaysData = useMemo(() => {
     const data = [];
@@ -174,6 +238,32 @@ export default function ChartsSection({ orders, darkMode = false }: ChartsSectio
     name,
     value
   }));
+
+  // Matching orders for the selected conclusion in the popup
+  const matchingOrders = useMemo(() => {
+    if (!selectedConclusion) return [];
+    return orders.filter((o) => {
+      let conclusion = o["מסקנות נועה AI"] ? o["מסקנות נועה AI"].trim() : "";
+      if (!conclusion) {
+        conclusion = "טרם נותח / ללא מסקנה";
+      }
+      return conclusion === selectedConclusion;
+    });
+  }, [orders, selectedConclusion]);
+
+  // Search filtered matching orders
+  const filteredMatchingOrders = useMemo(() => {
+    if (!searchQuery.trim()) return matchingOrders;
+    const query = searchQuery.toLowerCase().trim();
+    return matchingOrders.filter((o) => {
+      return (
+        o["שם לקוח"]?.toLowerCase().includes(query) ||
+        o["מספר הזמנה"]?.toString().includes(query) ||
+        o["מחסן"]?.toLowerCase().includes(query) ||
+        getCity(o["כתובת אספקה"])?.toLowerCase().includes(query)
+      );
+    });
+  }, [matchingOrders, searchQuery]);
 
   // --- Prepare Timeline/Trend Data (by day) ---
   const timelineCounts: Record<string, number> = {};
@@ -458,8 +548,35 @@ export default function ChartsSection({ orders, darkMode = false }: ChartsSectio
           </div>
         </div>
 
+        {/* Smart Stats Row */}
+        <div className="grid grid-cols-3 gap-2.5 mb-5">
+          <div className={`p-2.5 rounded-xl border text-center transition-all ${
+            darkMode ? "bg-slate-900/40 border-slate-800/60" : "bg-slate-50/60 border-slate-100"
+          }`}>
+            <span className={`block text-[10px] md:text-xs font-medium ${darkMode ? "text-slate-400" : "text-gray-500"}`}>סה"כ נותחו</span>
+            <span className="block text-base font-bold text-indigo-500 mt-0.5">{stats.analyzedCount}</span>
+          </div>
+          <div className={`p-2.5 rounded-xl border text-center transition-all ${
+            darkMode ? "bg-emerald-950/20 border-emerald-900/30" : "bg-emerald-50/40 border-emerald-100"
+          }`}>
+            <span className={`block text-[10px] md:text-xs font-medium ${darkMode ? "text-slate-400" : "text-gray-500"}`}>מאושר / תקין</span>
+            <span className="block text-base font-bold text-emerald-500 mt-0.5">{stats.approvedCount}</span>
+          </div>
+          <div className={`p-2.5 rounded-xl border text-center transition-all ${
+            darkMode ? "bg-amber-950/20 border-amber-900/30" : "bg-amber-50/40 border-amber-100"
+          }`}>
+            <span className={`block text-[10px] md:text-xs font-medium ${darkMode ? "text-slate-400" : "text-gray-500"}`}>דורש טיפול / חריג</span>
+            <span className="block text-base font-bold text-amber-500 mt-0.5">{stats.warningCount}</span>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-          <div className="h-56 w-full flex justify-center">
+          <div className="h-56 w-full flex justify-center relative">
+            {/* Prompt indicator inside chart center */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span className={`text-[10px] font-bold ${darkMode ? "text-slate-400" : "text-gray-400"}`}>לחץ על פלח</span>
+              <span className={`text-xs font-extrabold text-violet-500`}>לפירוט</span>
+            </div>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -470,9 +587,15 @@ export default function ChartsSection({ orders, darkMode = false }: ChartsSectio
                   outerRadius={75}
                   paddingAngle={3}
                   dataKey="value"
+                  style={{ cursor: "pointer" }}
                 >
                   {noaData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[(index + 4) % COLORS.length]} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={COLORS[(index + 4) % COLORS.length]} 
+                      onClick={() => setSelectedConclusion(entry.name)}
+                      className="hover:opacity-85 transition-opacity"
+                    />
                   ))}
                 </Pie>
                 <Tooltip
@@ -489,32 +612,265 @@ export default function ChartsSection({ orders, darkMode = false }: ChartsSectio
             </ResponsiveContainer>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
             {noaData.map((item, idx) => {
               const percentage = ((item.value / orders.length) * 100).toFixed(1);
+              const color = COLORS[(idx + 4) % COLORS.length];
               return (
-                <div key={item.name} className="flex flex-col gap-1 text-xs">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
+                <button
+                  key={item.name}
+                  onClick={() => setSelectedConclusion(item.name)}
+                  className={`w-full text-right flex flex-col gap-1 p-2 rounded-xl border transition-all hover:translate-x-[-2px] active:scale-98 cursor-pointer ${
+                    darkMode 
+                      ? "bg-slate-900/40 border-slate-800/80 hover:bg-slate-800/50 hover:border-slate-700" 
+                      : "bg-slate-50/60 border-slate-100 hover:bg-indigo-50/50 hover:border-indigo-150"
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2 max-w-[70%]">
                       <div
-                        className="w-3.5 h-3.5 rounded-full"
-                        style={{ backgroundColor: COLORS[(idx + 4) % COLORS.length] }}
+                        className="w-3 rounded-full h-3 shrink-0"
+                        style={{ backgroundColor: color }}
                       />
-                      <span className={`font-medium line-clamp-1 ${darkMode ? "text-slate-200" : "text-slate-700"}`} title={item.name}>
+                      <span className={`font-medium truncate text-xs ${darkMode ? "text-slate-200" : "text-slate-700"}`} title={item.name}>
                         {item.name}
                       </span>
                     </div>
-                    <div className={`flex gap-2 font-mono text-xs ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
-                      <span className="font-semibold">{item.value}</span>
-                      <span className={`${darkMode ? "text-slate-500" : "text-gray-400"}`}>({percentage}%)</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <div className={`flex gap-1 font-mono text-[11px] ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                        <span className="font-bold text-indigo-500">{item.value}</span>
+                        <span className={`${darkMode ? "text-slate-500" : "text-gray-400"}`}>({percentage}%)</span>
+                      </div>
+                      <ChevronLeft size={12} className="text-slate-400/80" />
                     </div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
         </div>
       </div>
+
+      {/* Noa AI Conclusions POPUP Detail Modal */}
+      <AnimatePresence>
+        {selectedConclusion && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setSelectedConclusion(null);
+                setSearchQuery("");
+              }}
+              className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs"
+            />
+
+            {/* Modal Body */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", duration: 0.4, bounce: 0.15 }}
+              className={`relative w-full max-w-xl max-h-[85vh] overflow-hidden rounded-2xl border shadow-2xl flex flex-col text-right direction-rtl ${
+                darkMode
+                  ? "bg-slate-900 border-slate-800 text-slate-100 shadow-slate-950/80"
+                  : "bg-white border-slate-100 text-slate-800 shadow-xl"
+              }`}
+            >
+              {/* Header Gradient Accent */}
+              <div className="absolute top-0 right-0 h-1.5 w-full bg-gradient-to-l from-violet-500 via-indigo-500 to-cyan-500" />
+
+              {/* Close Button & Header */}
+              <div className={`p-4 flex items-start justify-between border-b mt-1.5 ${
+                darkMode ? "border-slate-800" : "border-slate-100"
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-xl ${
+                    darkMode ? "bg-violet-950/50 text-violet-400" : "bg-violet-50 text-violet-700"
+                  }`}>
+                    <Brain size={20} className="animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold flex items-center gap-2">
+                      <span>פירוט הזמנות לפי קטגוריה</span>
+                    </h3>
+                    <p className={`text-xs mt-0.5 ${darkMode ? "text-slate-400" : "text-gray-400"}`}>
+                      קטגוריה: <span className="text-violet-500 font-bold">{selectedConclusion}</span> ({matchingOrders.length} הזמנות)
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setSelectedConclusion(null);
+                    setSearchQuery("");
+                  }}
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                    darkMode
+                      ? "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                      : "bg-slate-50 border-slate-200/60 text-slate-500 hover:bg-slate-100"
+                  }`}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              {/* Filter Search Input */}
+              {matchingOrders.length > 2 && (
+                <div className={`px-4 py-2 border-b flex items-center gap-2 ${
+                  darkMode ? "bg-slate-950/20 border-slate-850" : "bg-slate-50/50 border-slate-100"
+                }`}>
+                  <Search size={14} className="text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="חיפוש לפי לקוח, עיר, מספר הזמנה או מחסן..."
+                    className={`w-full bg-transparent text-xs border-0 focus:ring-0 outline-hidden font-medium ${
+                      darkMode ? "text-slate-100 placeholder-slate-500" : "text-slate-800 placeholder-gray-400"
+                    }`}
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="text-xs text-slate-400 hover:text-slate-600 font-bold"
+                    >
+                      נקה
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Scrollable List of orders */}
+              <div className="p-4 overflow-y-auto space-y-3 flex-1">
+                {filteredMatchingOrders.length === 0 ? (
+                  <div className="text-center py-10 text-slate-400 font-medium text-xs">
+                    לא נמצאו הזמנות התואמות את החיפוש בתוך קטגוריה זו.
+                  </div>
+                ) : (
+                  filteredMatchingOrders.map((o) => {
+                    const oId = o["מספר הזמנה"];
+                    const isCopied = copiedOrderId === oId;
+                    const dateStr = o["תאריך קליטה"] ? new Date(o["תאריך קליטה"]).toLocaleDateString("he-IL", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    }) : "";
+                    
+                    return (
+                      <div
+                        key={oId}
+                        className={`p-3.5 rounded-xl border transition-all text-right ${
+                          darkMode
+                            ? "bg-slate-950/40 border-slate-800/80 hover:bg-slate-950/80"
+                            : "bg-slate-50/40 border-slate-150 hover:bg-slate-50"
+                        }`}
+                      >
+                        {/* Order Meta Header */}
+                        <div className="flex items-center justify-between mb-2.5 border-b pb-2 border-dashed border-slate-800/10 dark:border-slate-800/40">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 rounded-md font-mono text-[11px] font-bold">
+                              #{oId}
+                            </span>
+                            <span className={`text-xs font-semibold ${darkMode ? "text-slate-200" : "text-slate-700"}`}>
+                              {o["שם לקוח"]}
+                            </span>
+                          </div>
+                          <span className={`text-[10px] font-mono ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                            {dateStr}
+                          </span>
+                        </div>
+
+                        {/* Order details grid */}
+                        <div className="grid grid-cols-2 gap-2 text-xs mb-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin size={12} className="text-slate-400 shrink-0" />
+                            <span className={`font-medium text-[11px] ${darkMode ? "text-slate-300" : "text-slate-600"}`}>
+                              יעד: {getCity(o["כתובת אספקה"])}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Warehouse size={12} className="text-slate-400 shrink-0" />
+                            <span className={`font-medium text-[11px] ${darkMode ? "text-slate-300" : "text-slate-600"}`}>
+                              מחסן: {o["מחסן"]}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Order Conclusion text */}
+                        <div className={`p-2.5 rounded-lg border flex items-start gap-2 ${
+                          darkMode ? "bg-slate-900/60 border-slate-850 text-slate-200" : "bg-white border-slate-100 text-slate-700"
+                        }`}>
+                          <Sparkles size={13} className="text-violet-500 mt-0.5 shrink-0" />
+                          <div className="flex-1 text-xs leading-relaxed whitespace-pre-wrap font-medium">
+                            {o["מסקנות נועה AI"] || "לא קיימת מסקנה מפורטת עבור הזמנה זו במערכת."}
+                          </div>
+                        </div>
+
+                        {/* Action buttons inside item */}
+                        <div className="flex justify-end gap-2 mt-2.5">
+                          <button
+                            onClick={async () => {
+                              const summaryText = `הזמנה #${oId} - ${o["שם לקוח"]}\nמסקנות נועה AI: ${o["מסקנות נועה AI"] || "אין"}`;
+                              try {
+                                await navigator.clipboard.writeText(summaryText);
+                                setCopiedOrderId(oId);
+                                setTimeout(() => setCopiedOrderId(null), 2000);
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+                              isCopied
+                                ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                                : darkMode
+                                  ? "bg-slate-900 border-slate-800 text-slate-300 hover:text-white"
+                                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                            }`}
+                          >
+                            {isCopied ? (
+                              <>
+                                <Check size={11} />
+                                <span>הועתק!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={11} />
+                                <span>העתק סיכום</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className={`p-3 border-t flex items-center justify-between text-xs ${
+                darkMode ? "border-slate-800 bg-slate-950/40" : "border-slate-100 bg-slate-50/50"
+              }`}>
+                <span className={`${darkMode ? "text-slate-400" : "text-slate-500"} font-medium`}>
+                  הצגת {filteredMatchingOrders.length} מתוך {matchingOrders.length} הזמנות בקטגוריה
+                </span>
+                <button
+                  onClick={() => {
+                    setSelectedConclusion(null);
+                    setSearchQuery("");
+                  }}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shadow-indigo-600/10"
+                >
+                  סגור
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* 5. Real-Time Warehouse Inventory & Utilization */}
       <div
