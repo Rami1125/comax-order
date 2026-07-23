@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
-  const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbyKxsXx-mZ-XRcYTLKVp_BrGo5Vic7YvvI5lVpnzTd5_hmTGwMQc6QD-f2j9azlLar0Gg/exec";
+  const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbwssxd5p5iehQU0BfmK33x4O_v_JmVnCKyjI36SvKPkGwNqdB1sziSsLgTbakKPmoWmNA/exec";
 
   try {
     const response = await fetch(GOOGLE_SHEET_URL);
